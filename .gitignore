@@ -1,0 +1,36 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+core/dist/
+core/build/
+core/*.spec
+
+# --- Node / Vite ---
+node_modules/
+app/dist/
+
+# --- Tauri / Rust ---
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/binaries/*
+!app/src-tauri/binaries/.gitkeep
+
+# --- 実行時データ ---
+*.db
+*.db-wal
+*.db-shm
+logs/
+
+# --- Character Pack・学習成果物(仕様 §19.3: 私的学習物はリポジトリへ含めない)---
+# character_pack_template/ は雛形なので含める。実データのPackは {APP_DATA} 側にあるが多重防御
+characters/
+training/
+*.safetensors
+*.ckpt
+*.pth
+
+# --- OS ---
+.DS_Store
+Thumbs.db
