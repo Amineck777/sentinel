@@ -30,6 +30,10 @@ class ChatService:
         self._hub = hub
         # asyncio.Task は強参照を保持しないとGCで途中終了し得るため、ここで持つ
         self._tasks: set[asyncio.Task] = set()
+        # セッション毎の生成直列化ロック。生成中の追い打ち送信で token イベントが
+        # 交錯するのを防ぐ。エントリは解放しない(個人利用のセッション数では
+        # 問題にならず、解放処理は取得との競合を生むため)
+        self._session_locks: dict[str, asyncio.Lock] = {}
 
     def start_turn(
         self,
@@ -49,6 +53,11 @@ class ChatService:
         return sid, mid
 
     async def _generate(self, session_id: str) -> None:
+        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            await self._generate_turn(session_id)
+
+    async def _generate_turn(self, session_id: str) -> None:
         messages = [{"role": "system", "content": system_prompt(self._characters.active_fragment())}]
         messages += self._store.history(session_id)
 

@@ -24,6 +24,7 @@ class FakeLLM:
         sys_prompt = messages[0]["content"]
         tag = "CHAR" if "キャラクター人格" in sys_prompt else "BASE"
         for chunk in [f"[{tag}]", "こんにちは"]:
+            await asyncio.sleep(0.005)  # 制御を手放し、生成の並行実行(交錯)を再現可能にする
             yield chunk
 
     async def is_reachable(self) -> bool:
@@ -91,6 +92,29 @@ def test_character_pack_activation(client):
             if ev["type"] == "message_done":
                 break
         assert text.startswith("[CHAR]")  # キャラのシステムプロンプトが合成された
+
+
+def test_concurrent_sends_are_serialized(client):
+    """生成中の追い打ち送信でも、同一セッションのtokenが交錯しない(方針 §7.1-1)。"""
+    c, _ = client
+    with c.websocket_connect(f"/v1/stream?token={TOKEN}") as ws:
+        r1 = c.post("/v1/chat", headers=H, json={"content": "1通目"})
+        sid = r1.json()["session_id"]
+        c.post("/v1/chat", headers=H, json={"content": "2通目", "session_id": sid})
+
+        replies, current, done_count = [], [], 0
+        for _ in range(30):
+            ev = ws.receive_json()
+            if ev["type"] == "token":
+                current.append(ev["delta"])
+            elif ev["type"] == "message_done":
+                replies.append("".join(current))
+                current = []
+                done_count += 1
+                if done_count == 2:
+                    break
+        # 直列化されていなければ1つ目の応答に2つ目のtokenが混入して崩れる
+        assert replies == ["[BASE]こんにちは", "[BASE]こんにちは"]
 
 
 def test_invalid_pack_does_not_break(client):

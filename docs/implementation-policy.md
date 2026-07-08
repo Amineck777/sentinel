@@ -117,13 +117,16 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 リファクタリング後のコードベースに対する棚卸し。**検証済み:** Pythonテスト7件パス・
 tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要ローカル `tauri dev`)。
 
-### 7.1 動作に関わる懸念(優先度高)
+### 7.1 動作に関わる懸念(優先度高)→ ✅ 全件対処済み(2026-07-08)
 
-| # | 懸念 | 対処案 |
+| # | 懸念 | 対処(実装済み) |
 |---|---|---|
-| 1 | **並行生成の混線:** 生成中に同一セッションへ次のメッセージを送ると、2つの生成タスクが同じ`session_id`でtokenを流し、UIの応答バブルが交錯する | `ChatService`にセッション単位の直列化(`asyncio.Lock`)を入れる。Phase 2の`cancel`(barge-in・仕様§18.4)導入時に合わせて設計するのが良い |
-| 2 | **ハンドシェイクのタイミング:** handshake行はuvicorn起動**前**に出力される(`__main__.py`)。Tauriが`core-ready`を受けた直後の`/health`が接続失敗し得る | handshake出力をFastAPIのlifespan startup(ソケットbind後)へ移す |
-| 3 | **health表示が一回きり:** `useCore`は起動時に1回だけ`/health`を取得。Ollamaを後から起動しても`LLM OFFLINE`表示のまま | ステータスレールを15〜30秒周期のポーリングに(§3「リトライ表示」の本来の意図) |
+| 1 | **並行生成の混線:** 生成中に同一セッションへ次のメッセージを送ると、2つの生成タスクが同じ`session_id`でtokenを流し、UIの応答バブルが交錯する | ✅ `ChatService`にセッション単位の`asyncio.Lock`で直列化。交錯の再現テスト付き(`test_concurrent_sends_are_serialized`)。Phase 2の`cancel`(barge-in・仕様§18.4)はこのロック点に挿す |
+| 2 | **ハンドシェイクのタイミング:** handshake行がuvicornのlisten開始**前**に出力され、受信直後の`/health`が接続失敗し得る | ✅ `server.started`を待ってから出力(`_serve_with_handshake`)。契約を「handshake受信後はリトライ不要」に強化し、実プロセスspawnのスモークテストで検証(`test_handshake.py`=sidecarスモークCIのミニ版) |
+| 3 | **health表示が一回きり:** Ollamaを後から起動しても`LLM OFFLINE`表示のまま | ✅ `useCore`が15秒周期で`/health`をポーリング。取得失敗時は`CORE ERROR`表示に落とす(§3「リトライ表示」) |
+
+補足: テスト・CI用にデータディレクトリを`SENTINEL_DATA_DIR`環境変数で隔離可能にした
+(スモークテストが実ユーザーデータを汚さないため)。
 
 ### 7.2 設計上の割り切り(単一ユーザー・ローカル前提。条件を満たしたら見直し)
 

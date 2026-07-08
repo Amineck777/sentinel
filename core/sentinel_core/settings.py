@@ -6,6 +6,7 @@ config.default.yaml(リポジトリ同梱の既定値)にユーザー差分を�
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,11 @@ import yaml
 from platformdirs import user_data_dir
 
 APP_NAME = "sentinel"
+
+
+def _default_data_dir() -> Path:
+    # SENTINEL_DATA_DIR はテスト・スモークCI用の隔離手段(実データを汚さない)
+    return Path(os.environ.get("SENTINEL_DATA_DIR") or user_data_dir(APP_NAME))
 
 DEFAULTS: dict[str, Any] = {
     "llm": {
@@ -39,11 +45,11 @@ def _deep_merge(base: dict, override: dict) -> dict:
 @dataclass
 class Settings:
     data: dict[str, Any] = field(default_factory=lambda: dict(DEFAULTS))
-    data_dir: Path = field(default_factory=lambda: Path(user_data_dir(APP_NAME)))
+    data_dir: Path = field(default_factory=_default_data_dir)
 
     @classmethod
     def load(cls, data_dir: Path | None = None) -> "Settings":
-        data_dir = data_dir or Path(user_data_dir(APP_NAME))
+        data_dir = data_dir or _default_data_dir()
         data_dir.mkdir(parents=True, exist_ok=True)
         user_cfg: dict[str, Any] = {}
         cfg_path = data_dir / "config.yaml"
