@@ -112,7 +112,43 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 - Tauri capabilities は `core:default` のみ(フロントに shell 権限を渡さない。
   sidecar起動はRust側の責務)
 
-## 7. 次の実装ステップ(このコードベースからの継続)
+## 7. セルフレビュー: 既知の懸念点と導入すべきもの(2026-07-08)
+
+リファクタリング後のコードベースに対する棚卸し。**検証済み:** Pythonテスト7件パス・
+tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要ローカル `tauri dev`)。
+
+### 7.1 動作に関わる懸念(優先度高)
+
+| # | 懸念 | 対処案 |
+|---|---|---|
+| 1 | **並行生成の混線:** 生成中に同一セッションへ次のメッセージを送ると、2つの生成タスクが同じ`session_id`でtokenを流し、UIの応答バブルが交錯する | `ChatService`にセッション単位の直列化(`asyncio.Lock`)を入れる。Phase 2の`cancel`(barge-in・仕様§18.4)導入時に合わせて設計するのが良い |
+| 2 | **ハンドシェイクのタイミング:** handshake行はuvicorn起動**前**に出力される(`__main__.py`)。Tauriが`core-ready`を受けた直後の`/health`が接続失敗し得る | handshake出力をFastAPIのlifespan startup(ソケットbind後)へ移す |
+| 3 | **health表示が一回きり:** `useCore`は起動時に1回だけ`/health`を取得。Ollamaを後から起動しても`LLM OFFLINE`表示のまま | ステータスレールを15〜30秒周期のポーリングに(§3「リトライ表示」の本来の意図) |
+
+### 7.2 設計上の割り切り(単一ユーザー・ローカル前提。条件を満たしたら見直し)
+
+| # | 割り切り | 見直し条件 |
+|---|---|---|
+| 4 | 同期SQLiteをイベントループ上で直接実行(クエリが軽微なため) | RAG導入(Phase 3)で重いクエリが入る時に`asyncio.to_thread`/aiosqlite化 |
+| 5 | アクティブキャラがプロセスグローバル(`CharacterRegistry._active`) | セッション毎キャラが必要になったら`sessions.character_id`へ紐づけ直す |
+| 6 | EventHubは全WS接続へファンアウト(UI側で`session_id`フィルタ) | 複数ウィンドウ・承認イベント(Phase 2)導入時にセッション購読制へ |
+| 7 | オフライン応答・エラー文言もassistantメッセージとして履歴保存され、後続ターンでLLMへ文脈として渡る | 実LLM接続後に会話品質へ影響が見えたら、保存スキップかrole分離 |
+| 8 | WSトークンがURLクエリ(§2で規定どおり)・`_find_free_port`のTOCTOU | 低優先の既知事項として記録のみ |
+
+### 7.3 導入すべきもの(推奨順)
+
+1. **CI** — ✅導入済み(`.github/workflows/ci.yml`: pytest+フロントビルド)。
+   **sidecarスモーク**(§5)はPhase 2着手前に追加すること
+2. **ruff + mypy / ESLint + Prettier**(仕様§5.4)— コードが小さい今のうちに入れるのが最安
+3. **パッケージマネージャの統一** — README/Makefileはpnpm表記だが実体は`package-lock.json`(npm)。
+   どちらかに決めて表記と実体を揃える(CIはnpm前提で書いた)
+4. **ログ基盤** — コアはuvicorn既定ログのみ。マスクフィルタ(仕様§13)を挟む前提の
+   `logging`設定を機能追加より先に
+5. **CSP** — `tauri.conf.json`の`"csp": null`は開発用。配布ビルド(S2)前に必ず設定
+6. **ADR運用開始**(仕様 付録A)— 0001(2プロセス構成)〜0003(SQLite)は既に決定済みの内容
+   なので、`docs/adr/`に起票して既成事実化しておく
+
+## 8. 次の実装ステップ(このコードベースからの継続)
 
 1. **Phase 2:** `tools/registry.py`+`files.py`(read系のみ)→ `plan_or_respond`を
    Function Calling対応に。承認ゲートは`hub`の`approval_required`イベント+
