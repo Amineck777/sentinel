@@ -1,4 +1,5 @@
 """WSストリーム(仕様 §7)。トークンはクエリで検証(実装方針 §2)。"""
+
 from __future__ import annotations
 
 import asyncio

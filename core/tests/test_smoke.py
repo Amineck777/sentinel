@@ -1,10 +1,10 @@
 """スモークテスト: 認証・ヘルス・チャット一連・キャラ切替(モックLLM使用=仕様 §12.2)。"""
+
 from __future__ import annotations
 
 import asyncio
-import json
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator
 
 import pytest
 from fastapi.testclient import TestClient

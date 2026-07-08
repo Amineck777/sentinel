@@ -4,12 +4,16 @@
 オフライン応答へフォールバックする(実装方針 §4)。配布版でも「Ollamaが落ちて
 いる」状態をユーザーに文章で伝えられる。
 """
+
 from __future__ import annotations
 
 import json
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
+
+from sentinel_core.llm.client import Message
 
 OFFLINE_NOTICE = (
     "(オフライン応答)推論サーバーに接続できませんでした。"
@@ -28,16 +32,16 @@ class OpenAICompatClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def stream_chat(self, messages: list[dict]) -> AsyncIterator[str]:
+    async def stream_chat(self, messages: list[Message]) -> AsyncIterator[str]:
         url = f"{self._endpoint}/chat/completions"
-        payload = {"model": self._model, "messages": messages, "stream": True}
+        payload: dict[str, Any] = {"model": self._model, "messages": messages, "stream": True}
         try:
             async with self._client.stream("POST", url, json=payload) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line.startswith("data:"):
                         continue
-                    data = line[len("data:"):].strip()
+                    data = line[len("data:") :].strip()
                     if data == "[DONE]":
                         break
                     try:

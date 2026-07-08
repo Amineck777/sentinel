@@ -11,7 +11,7 @@
 
 ## クイックスタート(S1: 開発モード)
 
-前提: Python 3.11+ / Node 20+ / pnpm。(Tauri確認には Rust toolchain も)
+前提: Python 3.11+ / Node 20+(npm)。(Tauri確認には Rust toolchain も)
 
 ```bash
 make setup        # 依存インストール

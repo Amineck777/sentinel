@@ -4,6 +4,7 @@ persona.md + speech_style.md + examples.jsonl(先頭N件)をシステムプロ�
 注入するフラグメントとして合成する。
 Lv2の本実装(口調RAG・文体検査)は Track X1 で style_rag.py / style_check.py に分離予定。
 """
+
 from __future__ import annotations
 
 import json

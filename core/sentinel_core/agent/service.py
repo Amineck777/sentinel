@@ -5,6 +5,7 @@ POST /v1/chat から呼ばれ、即座に (session_id, message_id) を返し、
 Phase 3 でこの生成部を LangGraph のグラフ実行(graph.py)へ差し替える。
 差し替え点をこのクラスに閉じ込めてある。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,7 +30,7 @@ class ChatService:
         self._characters = characters
         self._hub = hub
         # asyncio.Task は強参照を保持しないとGCで途中終了し得るため、ここで持つ
-        self._tasks: set[asyncio.Task] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
         # セッション毎の生成直列化ロック。生成中の追い打ち送信で token イベントが
         # 交錯するのを防ぐ。エントリは解放しない(個人利用のセッション数では
         # 問題にならず、解放処理は取得との競合を生むため)
@@ -58,7 +59,9 @@ class ChatService:
             await self._generate_turn(session_id)
 
     async def _generate_turn(self, session_id: str) -> None:
-        messages = [{"role": "system", "content": system_prompt(self._characters.active_fragment())}]
+        messages = [
+            {"role": "system", "content": system_prompt(self._characters.active_fragment())}
+        ]
         messages += self._store.history(session_id)
 
         parts: list[str] = []
@@ -67,7 +70,11 @@ class ChatService:
                 parts.append(delta)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
         except Exception as e:  # 予期しない失敗もUIへ通知して終端する(無言で固まらせない)
-            await self._hub.publish({"type": "notice", "level": "error", "text": f"生成エラー: {e}"})
+            await self._hub.publish(
+                {"type": "notice", "level": "error", "text": f"生成エラー: {e}"}
+            )
         full = "".join(parts) or "(応答なし)"
         mid = self._store.add_message(session_id, "assistant", full)
-        await self._hub.publish({"type": "message_done", "session_id": session_id, "message_id": mid})
+        await self._hub.publish(
+            {"type": "message_done", "session_id": session_id, "message_id": mid}
+        )

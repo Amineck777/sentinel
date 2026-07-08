@@ -3,10 +3,12 @@
 characters/{char_id}/character.yaml をマニフェストとして検証してロードする。
 不正Packは「無効化して理由を保持」し、起動は止めない(§16.3)。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -20,7 +22,7 @@ class CharacterPack:
     valid: bool
     error: str | None = None
     system_fragment: str = ""
-    voice: dict = field(default_factory=dict)
+    voice: dict[str, Any] = field(default_factory=dict)
 
 
 def load_pack(root: Path) -> CharacterPack:
@@ -30,7 +32,9 @@ def load_pack(root: Path) -> CharacterPack:
         cid = str(manifest["id"])  # 必須キーの存在チェックを兼ねる
         name = str(manifest.get("display_name", cid))
         return CharacterPack(
-            id=cid, display_name=name, valid=True,
+            id=cid,
+            display_name=name,
+            valid=True,
             system_fragment=compose_system_fragment(root),
             voice=manifest.get("voice") or {},
         )

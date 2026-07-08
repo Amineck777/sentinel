@@ -142,9 +142,13 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
 
 1. **CI** — ✅導入済み(`.github/workflows/ci.yml`: pytest+フロントビルド)。
    **sidecarスモーク**(§5)はPhase 2着手前に追加すること
-2. **ruff + mypy / ESLint + Prettier**(仕様§5.4)— コードが小さい今のうちに入れるのが最安
-3. **パッケージマネージャの統一** — README/Makefileはpnpm表記だが実体は`package-lock.json`(npm)。
-   どちらかに決めて表記と実体を揃える(CIはnpm前提で書いた)
+2. ✅ **ruff + mypy / ESLint + Prettier**(仕様§5.4)— 導入済み(2026-07-08)。
+   ruffはE/F/W/I/UP/B/SIM+`ruff format`、mypyは**strict**(`core/pyproject.toml`)。
+   ESLintはflat config+react-hooks、整形はPrettier(`app/eslint.config.js`)。
+   実行: `make lint` / 自動整形: `make fmt`。CIでも全チェックを強制
+3. ✅ **パッケージマネージャは npm に統一**(2026-07-08)— 実体が`package-lock.json`
+   だったためnpmを採用。Makefile・README・tauri.conf.json・CIすべてnpm表記に統一。
+   仕様§4の「pnpm」からの意図的な逸脱として記録(uv化はPhase 2以降に検討)
 4. **ログ基盤** — コアはuvicorn既定ログのみ。マスクフィルタ(仕様§13)を挟む前提の
    `logging`設定を機能追加より先に
 5. **CSP** — `tauri.conf.json`の`"csp": null`は開発用。配布ビルド(S2)前に必ず設定

@@ -4,6 +4,7 @@
 - 不正Packは無効化して理由を保持し、起動は止めない
 - どの失敗でも汎用モードへフォールバックしてアシスタント本体は動き続ける
 """
+
 from __future__ import annotations
 
 from pathlib import Path

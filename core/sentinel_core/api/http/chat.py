@@ -1,5 +1,8 @@
 """チャットAPI(仕様 §7)。ルーターは受付のみ。生成は agent.service.ChatService の責務。"""
+
 from __future__ import annotations
+
+from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -29,5 +32,5 @@ async def post_chat(body: ChatIn, request: Request) -> ChatOut:
 
 
 @router.get("/sessions")
-async def list_sessions(request: Request) -> dict:
+async def list_sessions(request: Request) -> dict[str, Any]:
     return {"sessions": request.app.state.store.list_sessions()}

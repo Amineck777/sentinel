@@ -3,8 +3,10 @@
 いわゆるポート&アダプタの結線点(仕様 §5.2)。テストでは `llm=` にモックを
 渡すだけで実LLMなしに全経路を検証できる(仕様 §12.2)。
 """
+
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -30,7 +32,7 @@ def create_app(
     llm: LLMClient | None = None,
 ) -> FastAPI:
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
         aclose = getattr(app.state.llm, "aclose", None)  # モックLLMはacloseを持たなくてよい
         if aclose:

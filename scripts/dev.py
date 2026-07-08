@@ -1,8 +1,8 @@
 """S1開発起動: コアをdevモード(固定 8765 / dev-token)で立ち上げる。
 
 UIは別ターミナルで:
-  ブラウザ開発: cd app && pnpm dev   → http://localhost:5173
-  Tauri確認:   cd app && pnpm tauri dev(devビルドはsidecarを起動せず、ここに接続)
+  ブラウザ開発: cd app && npm run dev   → http://localhost:5173
+  Tauri確認:   cd app && npm run tauri dev(devビルドはsidecarを起動せず、ここに接続)
 """
 import subprocess
 import sys

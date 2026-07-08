@@ -1,7 +1,10 @@
 """トークン認証(実装方針 §2/§6)。HTTPはヘッダ、WSはクエリで検証する。"""
+
 from __future__ import annotations
 
 import hmac
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from fastapi import HTTPException, Request, WebSocket
 
@@ -13,7 +16,7 @@ def _token_match(provided: str | None, expected: str) -> bool:
     return provided is not None and hmac.compare_digest(provided.encode(), expected.encode())
 
 
-def make_http_guard(token: str):
+def make_http_guard(token: str) -> Callable[[Request], Coroutine[Any, Any, None]]:
     async def guard(request: Request) -> None:
         if not _token_match(request.headers.get(TOKEN_HEADER), token):
             raise HTTPException(status_code=401, detail="invalid token")

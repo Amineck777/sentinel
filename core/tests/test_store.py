@@ -1,4 +1,5 @@
 """Store単体: 履歴順序の安定性(同一秒内の挿入でも順序が崩れないこと)。"""
+
 from __future__ import annotations
 
 from pathlib import Path

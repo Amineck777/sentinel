@@ -9,6 +9,7 @@
   出力は uvicorn が実際に listen を開始した後(実装方針 §7.1-2)。
   handshake を受けた側はリトライなしで即接続してよい。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,7 +33,7 @@ HANDSHAKE_PREFIX = "SENTINEL_HANDSHAKE "
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        return int(s.getsockname()[1])
 
 
 def _watch_stdin_for_parent_death(server: uvicorn.Server) -> None:
@@ -49,7 +50,7 @@ def _watch_stdin_for_parent_death(server: uvicorn.Server) -> None:
     threading.Thread(target=_run, name="stdin-watch", daemon=True).start()
 
 
-async def _serve_with_handshake(server: uvicorn.Server, handshake: dict) -> None:
+async def _serve_with_handshake(server: uvicorn.Server, handshake: dict[str, object]) -> None:
     """listen開始を確認してからhandshakeを出力する。
 
     早すぎるhandshakeはUI側の初回 /health を接続失敗させる(§7.1-2)。
@@ -65,7 +66,9 @@ async def _serve_with_handshake(server: uvicorn.Server, handshake: dict) -> None
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="sentinel-core")
-    parser.add_argument("--dev", action="store_true", help="開発モード(固定port/token・stdin監視なし)")
+    parser.add_argument(
+        "--dev", action="store_true", help="開発モード(固定port/token・stdin監視なし)"
+    )
     parser.add_argument("--port", type=int, default=0, help="0なら動的割当")
     parser.add_argument("--token", default=None)
     args = parser.parse_args()

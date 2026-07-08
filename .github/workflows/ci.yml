@@ -17,6 +17,13 @@ jobs:
           python-version: "3.11"
       - name: Install core with dev deps
         run: pip install -e "./core[dev]"
+      - name: Lint (ruff + format check)
+        run: |
+          python -m ruff check core/sentinel_core core/tests
+          python -m ruff format --check core/sentinel_core core/tests
+      - name: Type check (mypy strict)
+        run: python -m mypy
+        working-directory: core
       - name: Run tests
         run: python -m pytest core/tests -q
 
@@ -31,6 +38,11 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - name: Install dependencies
         run: npm ci
+        working-directory: app
+      - name: Lint (ESLint + Prettier check)
+        run: |
+          npm run lint
+          npm run format:check
         working-directory: app
       - name: Type check + build
         run: npm run build

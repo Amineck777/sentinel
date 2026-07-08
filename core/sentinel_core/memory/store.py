@@ -3,6 +3,7 @@
 Phase 1では最小限。tool_calls/approvals/RAG系テーブルはPhase 2/3で
 migrations機構ごと導入する(いまはuser_version=1として単純適用)。
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -10,6 +11,7 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
+from typing import Any
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -64,15 +66,17 @@ class Store:
             sid = session_id or _new_id()
             now = _now()
             c.execute(
-                "INSERT INTO sessions(id,title,character_id,created_at,updated_at) VALUES(?,?,?,?,?)",
+                "INSERT INTO sessions(id,title,character_id,created_at,updated_at) "
+                "VALUES(?,?,?,?,?)",
                 (sid, None, character_id, now, now),
             )
             return sid
 
-    def list_sessions(self, limit: int = 50) -> list[dict]:
+    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
         with closing(self._connect()) as c:
             rows = c.execute(
-                "SELECT * FROM sessions WHERE archived=0 ORDER BY updated_at DESC, rowid DESC LIMIT ?",
+                "SELECT * FROM sessions WHERE archived=0 "
+                "ORDER BY updated_at DESC, rowid DESC LIMIT ?",
                 (limit,),
             ).fetchall()
             return [dict(r) for r in rows]
@@ -88,14 +92,15 @@ class Store:
             c.execute("UPDATE sessions SET updated_at=? WHERE id=?", (_now(), session_id))
         return mid
 
-    def history(self, session_id: str, limit: int = 40) -> list[dict]:
+    def history(self, session_id: str, limit: int = 40) -> list[dict[str, str]]:
         """LLMへ渡す直近履歴(OpenAI形式)。
 
         created_at は秒精度で同値になり得るため、挿入順が確定する rowid で並べる。
         """
         with closing(self._connect()) as c:
             rows = c.execute(
-                "SELECT role, content FROM messages WHERE session_id=? AND role IN ('user','assistant') "
+                "SELECT role, content FROM messages "
+                "WHERE session_id=? AND role IN ('user','assistant') "
                 "ORDER BY rowid DESC LIMIT ?",
                 (session_id, limit),
             ).fetchall()

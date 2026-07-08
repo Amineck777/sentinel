@@ -3,6 +3,7 @@
 キャラクター(Character Pack)の口調フラグメントはここで合成する。
 依存方向は agent → character(agentは「口調コンテキストを受け取る」だけ。§5.2)。
 """
+
 from __future__ import annotations
 
 BASE_SYSTEM_PROMPT = (

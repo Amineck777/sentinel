@@ -49,7 +49,7 @@ def main() -> None:
     dest = OUT_DIR / name
     shutil.copy2(built, dest)
     print(f"sidecar -> {dest}")
-    print("次: cd app && pnpm tauri build")
+    print("次: cd app && npm run tauri build")
 
 
 if __name__ == "__main__":

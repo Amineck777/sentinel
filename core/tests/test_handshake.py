@@ -2,6 +2,7 @@
 
 実プロセスを spawn するため、sidecarスモークCI(方針 §5)のミニ版を兼ねる。
 """
+
 from __future__ import annotations
 
 import json
@@ -41,9 +42,7 @@ def test_handshake_printed_after_listening(tmp_path: Path):
         env=env,
     )
     lines: queue.Queue[str] = queue.Queue()
-    threading.Thread(
-        target=lambda: [lines.put(ln) for ln in proc.stdout], daemon=True
-    ).start()
+    threading.Thread(target=lambda: [lines.put(ln) for ln in proc.stdout], daemon=True).start()
 
     try:
         handshake = None
@@ -54,7 +53,7 @@ def test_handshake_printed_after_listening(tmp_path: Path):
                 assert proc.poll() is None, "core exited before handshake"
                 continue
             if line.startswith(HANDSHAKE_PREFIX):
-                handshake = json.loads(line[len(HANDSHAKE_PREFIX):])
+                handshake = json.loads(line[len(HANDSHAKE_PREFIX) :])
                 break
         assert handshake, f"handshake not received within {WAIT_SEC}s"
 
