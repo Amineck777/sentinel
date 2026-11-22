@@ -29,6 +29,8 @@ def target_triple() -> str:
 
 
 def main() -> None:
+    # Windows の CI ではパイプ出力が cp1252 になり、日本語の print で落ちるため UTF-8 に揃える
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     triple = target_triple()
     ext = ".exe" if platform.system() == "Windows" else ""
     name = f"sentinel-core-{triple}{ext}"

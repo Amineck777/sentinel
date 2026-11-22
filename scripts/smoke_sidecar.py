@@ -38,6 +38,8 @@ def find_binary() -> Path:
 
 
 def main() -> None:
+    # Windows の CI ではパイプ出力が cp1252 になり、日本語の print で落ちるため UTF-8 に揃える
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     binary = find_binary()
     print(f"[smoke] {binary.name} を起動")
     with tempfile.TemporaryDirectory() as data_dir:
