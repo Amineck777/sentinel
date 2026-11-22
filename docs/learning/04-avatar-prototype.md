@@ -85,7 +85,7 @@ cd app; npm run dev
 - **腕が上がる**:腕を下ろすつもりで `leftUpperArm` の z 回転を負にしたらバンザイになった。正規化ボーンでは左腕は **+z** で下がる(右腕は −z)
 - **「おどろき」が効かない**:VRM 0.x には `surprised` のプリセットが無い。このモデルは作者が独自に `Surprised`(先頭大文字)を足していたので、同名の独自表情で代用するようにした(`resolveExpression`)
 - **表情が 70 個ある**:ARKit(iPhone の顔追跡)由来の 52 個が入っている。将来、顔追跡を使うなら役に立つ
-- **`.env.local` を PowerShell 5.1 の `Set-Content -Encoding utf8` で作ると読めない**:先頭に BOM(目に見えない印)が付き、変数名が `﻿SENTINEL_...` になってしまう。メモ帳か VS Code で作る
+- **`.env.local` を PowerShell 5.1 の `Set-Content -Encoding utf8` で作ると読めない**:先頭に BOM(目に見えない印)が付き、変数名の頭に BOM が混ざって `SENTINEL_AVATAR_VRM` として読まれない。メモ帳か VS Code で作る
 - **`THREE.Clock` が非推奨の警告**:three r187 で `Timer` に置き換え中。依存を減らすため `performance.now()` で dt を計算した
 - **ビルドで 500kB 超の警告**:three.js が大きいため。アバターは別ページ(`avatar.html`)に分けたので、チャット画面の読み込みは重くならない
 - **最初の1回だけ自動読み込みされない**ことがあった:開発サーバーの起動直後で `/__avatar/model.vrm` がまだ返らなかったため。再読み込みで直る
