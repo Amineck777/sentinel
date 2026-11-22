@@ -4,17 +4,27 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod settings;
 mod sidecar;
 
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, RunEvent, WindowEvent,
+    Emitter, Manager, RunEvent, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 fn toggle_main_window(app: &tauri::AppHandle) {
     toggle_window(app, "main");
+}
+
+/// メイン窓を出して、設定画面を開くよう画面側へ知らせる
+fn open_settings(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        let _ = win.emit("settings://open", ());
+    }
 }
 
 /// 窓の表示・非表示を切り替える。窓は tauri.conf.json の label で指す
@@ -77,25 +87,39 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(sidecar::CoreState::default())
-        .invoke_handler(tauri::generate_handler![sidecar::get_core_info])
+        .manage(settings::SettingsState::default())
+        .invoke_handler(tauri::generate_handler![
+            sidecar::get_core_info,
+            settings::get_settings,
+            settings::update_settings,
+            settings::read_avatar_model,
+        ])
         .setup(|app| {
             // --- sidecar起動(リリースビルドのみ。devは make core-dev に接続) ---
             #[cfg(not(debug_assertions))]
             sidecar::spawn_core(app.handle())?;
 
+            // --- シェル設定の読み込みと反映(アバター窓の表示・最前面) ---
+            let loaded = settings::load(app.handle());
+            settings::apply(app.handle(), &loaded);
+            *app.state::<settings::SettingsState>().0.lock().unwrap() = loaded;
+
             // --- トレイ常駐(EX-05) ---
             let show = MenuItem::with_id(app, "show", "SENTINELを表示", true, None::<&str>)?;
             let avatar =
                 MenuItem::with_id(app, "avatar", "アバターを表示/隠す", true, None::<&str>)?;
+            let prefs = MenuItem::with_id(app, "settings", "設定…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &avatar, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &avatar, &prefs, &quit])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => toggle_main_window(app),
-                    "avatar" => toggle_window(app, "avatar"),
+                    "avatar" => settings::toggle_avatar(app),
+                    "settings" => open_settings(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -110,7 +134,20 @@ fn main() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if window.label() == settings::AVATAR_WINDOW {
+                    // Alt+F4 などで閉じたら「非表示」として設定にも残す(次回起動で勝手に出ないように)
+                    let app = window.app_handle();
+                    let mut next = app
+                        .state::<settings::SettingsState>()
+                        .0
+                        .lock()
+                        .unwrap()
+                        .clone();
+                    next.avatar_visible = false;
+                    let _ = settings::replace(app, next);
+                } else {
+                    let _ = window.hide();
+                }
             }
         })
         .build(tauri::generate_context!())

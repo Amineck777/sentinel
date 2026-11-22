@@ -6,7 +6,10 @@
 // 背景を透明にし、操作パネルを隠し、ドラッグで窓ごと動かす。ダブルクリックでパネルを出し入れする。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getSettings, onSettingsChanged, readAvatarModel } from "../settings/shellSettings";
 import { AvatarStage, EMOTIONS, type Emotion, type ModelInfo } from "./avatarStage";
+
+const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
 const LOCAL_MODEL_URL = "/__avatar/model.vrm";
 /** Tauri の窓の中で動いているか(ブラウザには __TAURI_INTERNALS__ が無い) */
@@ -66,13 +69,54 @@ export function AvatarApp() {
     if (import.meta.env.DEV) {
       (window as Window & { __avatarStage?: AvatarStage }).__avatarStage = stage;
     }
-    // 開発サーバーにローカルモデルが設定されていれば自動で読む
-    fetch(LOCAL_MODEL_URL, { method: "HEAD" })
-      .then((r) => {
-        if (r.ok) void load(LOCAL_MODEL_URL, "SENTINEL_AVATAR_VRM");
-      })
-      .catch(() => {});
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+
+    // 開発サーバーにローカルモデル(.env.local)が設定されていれば読む
+    const loadDevModel = () =>
+      fetch(LOCAL_MODEL_URL, { method: "HEAD" })
+        .then((r) => {
+          if (r.ok && !cancelled) void load(LOCAL_MODEL_URL, "SENTINEL_AVATAR_VRM");
+        })
+        .catch(() => {});
+
+    // 設定画面で選んだモデルを読む。配布版でも動くよう、ファイルは Rust に読んでもらう
+    const loadConfiguredModel = async (path: string) => {
+      const bytes = await readAvatarModel();
+      if (cancelled) return;
+      const url = URL.createObjectURL(new Blob([bytes]));
+      await load(url, fileName(path));
+      URL.revokeObjectURL(url);
+    };
+
+    if (IN_TAURI) {
+      // 設定のモデルが変わったときだけ読み直す(表示・最前面の変更では読み直さない)
+      let current: string | null | undefined;
+      const sync = (path: string | null) => {
+        if (path === current) return;
+        current = path;
+        if (path) {
+          loadConfiguredModel(path).catch((e: unknown) =>
+            setStatus({ kind: "error", message: String(e) }),
+          );
+        } else {
+          void loadDevModel();
+        }
+      };
+      getSettings()
+        .then((s) => sync(s.avatarModelPath))
+        .catch(() => void loadDevModel());
+      void onSettingsChanged((s) => sync(s.avatarModelPath)).then((u) => {
+        if (cancelled) u();
+        else unlisten = u;
+      });
+    } else {
+      void loadDevModel();
+    }
+
     return () => {
+      cancelled = true;
+      unlisten?.();
       stage.dispose();
       stageRef.current = null;
     };
@@ -151,7 +195,11 @@ export function AvatarApp() {
             <p>
               .vrm ファイルをここへドロップ
               <br />
-              <small>(app/.env.local に SENTINEL_AVATAR_VRM を書くと自動で読みます)</small>
+              <small>
+                {IN_TAURI
+                  ? "(メイン窓の右上の歯車 → 設定でモデルを選ぶと、次から自動で読みます)"
+                  : "(app/.env.local に SENTINEL_AVATAR_VRM を書くと自動で読みます)"}
+              </small>
             </p>
           )}
         </div>

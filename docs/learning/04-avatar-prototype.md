@@ -110,6 +110,30 @@ cd app; npm run dev
 - `tauri dev` が `Port 5173 is already in use` で止まる:別に `npm run dev` が動いていると、`beforeDevCommand` の vite が起動できない。先に止める
 - 配布版(release)には開発サーバーが無いので `/__avatar/model.vrm` は使えない。今はドロップで読む(モデルの置き場所の設定は今後)
 
+## 設定画面(右上の歯車)
+
+**一言で:** 「どのモデルを出すか・表示するか」は Rust 側が JSON ファイルに保存して窓へ反映し、画面(React)は読み書きを頼むだけ。
+
+**背景:** `.env.local` やトレイだけでは分かりにくく、配布版には開発サーバーが無いので `.env.local` も使えない。
+
+**しくみ:**
+```
+設定画面(SettingsPanel.tsx) ──invoke("update_settings")──▶ settings.rs
+                                                         ├ shell-settings.json に保存
+                                                         ├ avatar 窓を show/hide・最前面を反映
+                                                         └ 全窓へ "settings://changed" を送る
+アバター窓(AvatarApp.tsx) ◀── settings://changed ── モデルが変わったら invoke("read_avatar_model") で中身を受け取り表示
+```
+- `app/src-tauri/src/settings.rs`:`get_settings` / `update_settings` / `read_avatar_model` の3つのコマンド
+- 保存先は `%APPDATA%\dev.yuto.sentinel\shell-settings.json`(Tauri の `app_config_dir`)。壊れていても既定値で起動する
+- コアの設定(`config.yaml`:LLM など)とは分けた。窓の見せ方はシェルの責務、頭脳の設定はコアの責務
+- **`read_avatar_model` はパスを引数に取らない**。「設定済みのパス」だけを読む。画面から任意のパスを渡せると、どのファイルでも読めてしまうため
+- 32MB のモデルを JSON(数値の配列)で渡すと遅いので、`tauri::ipc::Response` でバイト列のまま返す。JS には `ArrayBuffer` で届き、`Blob` → `URL.createObjectURL` で three.js に渡す
+- ファイル選択は `tauri-plugin-dialog`。権限はメイン窓に `dialog:allow-open` だけ足した
+- アバター窓を Alt+F4 で閉じたら、設定も「非表示」にする(次回起動で勝手に出ないように)
+
+**やってみる:** `cd app; npm run tauri dev` → 右上の歯車 →「ファイルを選ぶ…」で `.vrm` →「アバターを表示する」をオン。アプリを終了して起動し直しても出てくれば保存できている。
+
 ## 次の段階(未着手)
 
 1. 窓のクリック透過(キャラ以外の透明な部分をクリックしたら後ろの窓に届くようにする)と、位置・大きさの記憶
@@ -125,3 +149,5 @@ cd app; npm run dev
 5. このテストモデルで、してはいけないことを3つ挙げよ
 6. 透明窓にしたのに背景が透けないとき、まず何を疑うか
 7. avatar 窓に `start-dragging` の権限が必要なのはなぜか
+8. `read_avatar_model` がファイルのパスを引数に取らないのはなぜか
+9. 設定画面でモデルを変えたとき、アバター窓はどうやってそれを知るか

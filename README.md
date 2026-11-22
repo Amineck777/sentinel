@@ -72,8 +72,16 @@ SENTINEL_AVATAR_VRM=C:/path/to/model.vrm
 **ブラウザで:** `cd app; npm run dev` → http://localhost:5173/avatar.html
 (右のパネルで表情・まばたき・口パク。ドラッグで回転、ホイールで拡大)
 
-**デスクトップ窓で:** `cd app; npm run tauri dev` → タスクトレイの SENTINEL アイコン →「アバターを表示/隠す」
-(透明・枠なし・最前面。キャラを掴むと窓ごと移動、ダブルクリックで操作パネル)
+**デスクトップ窓で:** `cd app; npm run tauri dev` → チャット窓の右上の**歯車(設定)**を開き、
+「モデル(.vrm)」でファイルを選んで「アバターを表示する」をオンにする。
+(透明・枠なし・最前面。キャラを掴むと窓ごと移動、ダブルクリックで表情・口パクの試験パネル)
+設定は次回の起動でも残る。トレイの SENTINEL アイコンからも「アバターを表示/隠す」「設定…」を選べる。
+
+## 設定画面
+
+チャット窓の右上の歯車から開く(トレイの「設定…」でも可)。今変えられるのはアバターの表示・最前面・モデルファイル。
+接続状態とホットキーは確認のみ(LLM の接続先はコアの `config.yaml`、ホットキーは環境変数 `SENTINEL_HOTKEY`)。
+保存先は `%APPDATA%\dev.yuto.sentinel\shell-settings.json`。
 
 ## 学習ノートと Claude Code スキル
 
@@ -98,6 +106,7 @@ core/                     Pythonコア … テスト済み
 app/                      Tauri 2 + React UI
   src/features/chat/      useCore・useChat + StatusRail/MessageLog/Composer
   src/features/avatar/    アバター試作(three-vrm の描画・表情・口パク)
+  src/features/settings/  設定画面(右上の歯車)
   src-tauri/              トレイ/ホットキー/sidecar管理
 character_pack_template/  Packの雛形(characters/へコピーして使う)
 scripts/                  dev起動・sidecarビルド
