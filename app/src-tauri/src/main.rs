@@ -11,7 +11,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager, RunEvent, WindowEvent,
 };
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
@@ -24,6 +24,50 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
+/// 既定ホットキーの候補(先頭から順に登録を試す)。
+/// Alt+Space は Windows のウィンドウメニュー、Ctrl+Space は日本語IMEの切替と衝突するため使わない。
+/// 環境変数 SENTINEL_HOTKEY で上書きできる(設定画面ができたら config.yaml の app.hotkey へ移す)。
+const HOTKEY_CANDIDATES: &[&str] = &["Ctrl+Shift+Space", "Ctrl+Alt+Space"];
+
+/// ホットキーを登録する。他アプリが使用中などで登録できなくてもアプリは起動を続ける
+/// (トレイから操作できるため)。
+fn register_hotkey(app: &tauri::AppHandle) {
+    let from_env = std::env::var("SENTINEL_HOTKEY").ok();
+    let candidates: Vec<&str> = from_env
+        .as_deref()
+        .into_iter()
+        .chain(HOTKEY_CANDIDATES.iter().copied())
+        .collect();
+
+    for key in candidates {
+        let shortcut: Shortcut = match key.parse() {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[hotkey] '{key}' を解釈できません: {e}");
+                continue;
+            }
+        };
+        let handle = app.clone();
+        let registered = app
+            .global_shortcut()
+            .on_shortcut(shortcut, move |_app, _sc, event| {
+                // 押下と離上の両方で呼ばれるので、押下だけで切り替える
+                // (両方で切り替えると、開いた直後に閉じてしまう)
+                if event.state() == ShortcutState::Pressed {
+                    toggle_main_window(&handle);
+                }
+            });
+        match registered {
+            Ok(()) => {
+                eprintln!("[hotkey] {key} を登録しました");
+                return;
+            }
+            Err(e) => eprintln!("[hotkey] {key} を登録できません: {e}"),
+        }
+    }
+    eprintln!("[hotkey] ホットキーなしで起動します(トレイから表示できます)");
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -33,7 +77,7 @@ fn main() {
         .setup(|app| {
             // --- sidecar起動(リリースビルドのみ。devは make core-dev に接続) ---
             #[cfg(not(debug_assertions))]
-            sidecar::spawn_core(&app.handle())?;
+            sidecar::spawn_core(app.handle())?;
 
             // --- トレイ常駐(EX-05) ---
             let show = MenuItem::with_id(app, "show", "SENTINELを表示", true, None::<&str>)?;
@@ -49,12 +93,8 @@ fn main() {
                 })
                 .build(app)?;
 
-            // --- グローバルホットキー(IN-02): Alt+Space でパレット(=当面メイン窓)を出す ---
-            let shortcut: Shortcut = "Alt+Space".parse().unwrap();
-            let handle = app.handle().clone();
-            app.global_shortcut().on_shortcut(shortcut, move |_app, _sc, _ev| {
-                toggle_main_window(&handle);
-            })?;
+            // --- グローバルホットキー(IN-02): パレット(=当面メイン窓)の表示切替 ---
+            register_hotkey(app.handle());
 
             Ok(())
         })

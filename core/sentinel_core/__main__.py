@@ -25,6 +25,7 @@ import uvicorn
 
 from sentinel_core import __version__
 from sentinel_core.api.app import create_app
+from sentinel_core.logging_setup import install_token_redaction
 from sentinel_core.settings import Settings
 
 HANDSHAKE_PREFIX = "SENTINEL_HANDSHAKE "
@@ -84,6 +85,7 @@ def main() -> None:
     app = create_app(settings=settings, token=token, dev=args.dev)
 
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+    install_token_redaction()  # uvicornのログ設定(Config生成時)の後に付ける
     server = uvicorn.Server(config)
 
     if not args.dev:
