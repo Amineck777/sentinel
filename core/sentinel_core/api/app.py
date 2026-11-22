@@ -16,13 +16,21 @@ from sentinel_core import __version__
 from sentinel_core.agent.service import ChatService
 from sentinel_core.api.http import characters, chat, system
 from sentinel_core.api.ws import stream
-from sentinel_core.auth import make_http_guard
+from sentinel_core.auth import TOKEN_HEADER, make_http_guard
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.llm.client import LLMClient
 from sentinel_core.llm.openai_compat import OpenAICompatClient
 from sentinel_core.memory.store import Store
 from sentinel_core.settings import Settings
+
+# Tauri 2 の画面のorigin。Windows/Android は http(s)://tauri.localhost、macOS/Linux は tauri://localhost
+TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
+VITE_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def allowed_origins(dev: bool) -> list[str]:
+    return TAURI_ORIGINS + (VITE_DEV_ORIGINS if dev else [])
 
 
 def create_app(
@@ -40,13 +48,15 @@ def create_app(
 
     app = FastAPI(title="sentinel-core", version=__version__, lifespan=lifespan)
 
-    if dev:  # ブラウザ開発(Vite)時のみCORS許可。managedでは不要=無効(実装方針 §6)
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+    # CORS(実装方針 §6)。Tauriの画面は自前のoriginからコアへfetchするため、
+    # managedでもTauriのoriginだけは許可が必要(無いとプリフライトが405で拒否される)。
+    # devではブラウザ開発(Vite)のoriginも追加する。それ以外のoriginは許可しない。
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins(dev),
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Content-Type", TOKEN_HEADER],
+    )
 
     # --- 依存の組み立て ---
     app.state.settings = settings

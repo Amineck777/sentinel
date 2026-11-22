@@ -27,5 +27,5 @@ fmt:              ## 自動整形(ruff format / Prettier)
 sidecar:          ## コアをPyInstallerでsidecar化(要: pip install pyinstaller)
 	python scripts/build_sidecar.py
 
-bundle: sidecar   ## 配布ビルド(.msi/.dmg/.AppImage)
-	cd app && npm run tauri build
+bundle: sidecar   ## 配布ビルド(.msi/.dmg/.AppImage)。externalBin は配布用設定でだけ有効にする
+	cd app && npm run tauri:bundle

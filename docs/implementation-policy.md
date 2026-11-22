@@ -66,12 +66,12 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 | OpenAI互換LLMクライアント(Ollama) | ✅ 実装済(**未接続時はオフライン応答へ自動フォールバック**=LLMなしでもUI開発可) | `llm/client.py`(抽象), `llm/openai_compat.py` |
 | 会話永続化(ME-01/02の土台) | ✅ 実装済(SQLite: sessions/messages) | `memory/store.py` |
 | Character Packロード(CH-01/02=口調Lv1) | ✅ 実装済(ロード=pack / 口調合成=persona / 走査・切替=registry) | `character/pack.py`, `character/persona.py`, `character/registry.py`, `api/http/characters.py` |
-| Tauriシェル(sidecar・トレイ・ホットキー) | ✅ 実装済(要ローカルビルド確認) | `app/src-tauri/src/*.rs` |
+| Tauriシェル(sidecar・トレイ・ホットキー) | ✅ 2026-11-22 Windows実機で `tauri dev`(dev コア接続・ホットキー・トレイ)と `tauri build`(sidecar 自動起動)を確認。CI で clippy(Windows) | `app/src-tauri/src/*.rs` |
 | チャットUI+ステータスレール | ✅ 実装済(接続=useCore / 会話=useChat / 表示コンポーネント3分割) | `app/src/features/chat/` |
 | Function Calling・承認ゲート(AC-06) | ⬜ Phase 2(hubに`approval_required`イベント型だけ予約済み) | — |
 | RAG / LangGraph / MCP | ⬜ Phase 3 | — |
 | 音声(STT/TTS) | ⬜ Phase 4 / Track X2 | — |
-| PyInstaller sidecar化 | 🔶 スクリプト提供(実行は各OSで) | `scripts/build_sidecar.py` |
+| PyInstaller sidecar化 | ✅ Windows で生成・起動を確認(2026-11-22)。他OSは未確認 | `scripts/build_sidecar.py` |
 
 **テストでのLLM差し替え:** `create_app(..., llm=モック)` のDI引数で行う
 (アプリ生成後の `app.state.llm` 差し替えは `ChatService` が参照を掴んでいるため効かない)。
@@ -91,10 +91,12 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 [S2: 配布ビルド]
   make sidecar         # PyInstallerでコアを単一実行ファイル化
                        #   → app/src-tauri/binaries/sentinel-core-{target_triple}
-  make bundle          # tauri build(externalBinとしてコアを同梱)
+  make bundle          # tauri build(externalBinとしてコアを同梱。tauri.bundle.conf.json を重ねる)
                        #   → .msi / .dmg / .AppImage
 ```
 
+- `externalBin` は `tauri.conf.json` ではなく **`tauri.bundle.conf.json`** に置く。
+  基本設定に置くと、sidecar を未ビルドのままでは `tauri dev` もビルドスクリプトで失敗するため
 - Tauriの`externalBin`は **`名前-{ターゲットトリプル}`** 命名を要求する
   (例: `sentinel-core-x86_64-pc-windows-msvc.exe`)。`build_sidecar.py`が
   `rustc -vV`からトリプルを取得して自動命名する
@@ -108,7 +110,10 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 - コアは `127.0.0.1` バインド固定。0.0.0.0にする設定項目を**作らない**
 - トークンはmanagedモードで起動毎に`secrets.token_urlsafe(32)`生成。
   ログにトークンを出さない(handshake行はRustが読むのみでログ保存しない)
-- CORSはdevモードのみ `http://localhost:5173` を許可。managedでは無効
+- CORS は許可するoriginを限定する。**managedでも Tauri の画面のorigin(`http://tauri.localhost`・
+  `https://tauri.localhost`・`tauri://localhost`)は許可が必要**(無いとUIからの fetch が
+  プリフライトで拒否され、配布ビルドが動かない)。devではそれに加えて Vite(`localhost:5173`)を許可
+- uvicorn のログは WS の `?token=` を `token=***` にマスクする(`logging_setup.py`)
 - Tauri capabilities は `core:default` のみ(フロントに shell 権限を渡さない。
   sidecar起動はRust側の責務)
 
@@ -162,3 +167,20 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
    `POST /v1/approvals/{id}` を先に固定(UIと同時に)
 2. **Track X0:** Character管理UI(一覧・切替は実装済API `/v1/characters` を叩くだけ)
 3. **CI:** GitHub Actionsで `make test` + sidecarスモーク(§5)
+
+## 9. 不具合修正の記録(2026-11-22)
+
+2026-11-22 の調査で見つかった、デスクトップアプリとして起動・接続できない不具合を修正した。
+
+| # | 不具合 | 修正 |
+|---|---|---|
+| B1 | managed で CORS を無効にしていたため、配布ビルドの画面からの fetch がプリフライト(OPTIONS)で 405 になり、コアに接続できない | Tauri の origin を常に許可(§6)。`tests/test_security.py` で回帰テスト |
+| B2 | debug ビルドは sidecar を起動しないのに、画面は `get_core_info` の値を待つため、`make tauri-dev` が10秒でタイムアウトする | debug ビルドの `get_core_info` は dev コアの固定値(8765 / dev-token、環境変数 `SENTINEL_DEV_PORT` / `SENTINEL_DEV_TOKEN` で上書き)を返す |
+| B2b | `externalBin` が基本設定にあり、sidecar 未ビルドだとビルドスクリプトが失敗する | `tauri.bundle.conf.json` に分離し、`make bundle` だけで重ねる |
+| B2c | Rust がコンパイルできなかった(`sidecar.spawn()?` のエラー型不一致、`shutdown_core` のロックガードの寿命) | 修正。debug/release とも `cargo check`・clippy 通過 |
+| B3 | ホットキーの押下と離上の両方で表示を切り替えるため、開いた直後に閉じる。Alt+Space は Windows のウィンドウメニューと衝突。登録失敗で起動ごと失敗する | 押下時のみ切替。既定を Ctrl+Shift+Space(失敗時 Ctrl+Alt+Space)にし、`SENTINEL_HOTKEY` で上書き可能。登録できなくても起動は続ける |
+| B4 | uvicorn が WS の URL を `?token=` ごとログに出し、Rust 側が stderr に出力していた | uvicorn のロガーにマスクフィルタ |
+| B5 | アイコンが 32×32 の png のみで、Windows ビルドに必要な `icon.ico` がない | `tauri icon` で一式を生成(元画像 `icons/app-icon.png`) |
+
+**確認済(2026-11-22, Windows 実機):** `tauri dev` でdev コア接続・Ctrl+Shift+Space の開閉・トレイ、`tauri:bundle` でインストーラ生成と sidecar の自動起動(B9 は Windows では発生せず)。
+

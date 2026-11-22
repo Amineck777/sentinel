@@ -7,7 +7,7 @@
 - ストリーミングチャット(FastAPI + WS + Ollama/OpenAI互換)
 - **Ollama未起動でも動く**(オフライン応答へ自動フォールバック → UI開発を止めない)
 - 会話のSQLite永続化 / Character Pack のロード・切替(口調Lv1)
-- Tauriデスクトップ:トレイ常駐・Alt+Spaceトグル・sidecar自動起動(リリースビルド)
+- Tauriデスクトップ:トレイ常駐・ホットキー(既定 Ctrl+Shift+Space、`SENTINEL_HOTKEY` で変更可)で表示切替・sidecar自動起動(リリースビルド)
 
 ## クイックスタート(S1: 開発モード)
 
