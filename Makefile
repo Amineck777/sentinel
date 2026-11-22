@@ -28,4 +28,4 @@ sidecar:          ## コアをPyInstallerでsidecar化(要: pip install pyinstal
 	python scripts/build_sidecar.py
 
 bundle: sidecar   ## 配布ビルド(.msi/.dmg/.AppImage)。externalBin は配布用設定でだけ有効にする
-	cd app && npm run tauri build -- --config src-tauri/tauri.bundle.conf.json
+	cd app && npm run tauri:bundle
