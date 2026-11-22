@@ -1,8 +1,9 @@
 """OpenAI互換エンドポイント(Ollama等)へのストリーミングクライアント。
 
 設計判断: 推論サーバー未起動でもコアとUIの開発を止めないため、接続失敗時は
-オフライン応答へフォールバックする(実装方針 §4)。配布版でも「Ollamaが落ちて
-いる」状態をユーザーに文章で伝えられる。
+案内文(オフライン応答)を LLMUnavailableError で返す(実装方針 §4)。配布版でも
+「Ollamaが落ちている」状態をユーザーに文章で伝えられる。案内文はモデルの発言では
+ないので、ChatService が履歴に保存せず通知として表示する。
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from sentinel_core.llm.client import Message
+from sentinel_core.llm.client import LLMUnavailableError, Message
 
 OFFLINE_NOTICE = (
     "(オフライン応答)推論サーバーに接続できませんでした。"
@@ -50,13 +51,13 @@ class OpenAICompatClient:
                         continue
                     if delta:
                         yield delta
-        except httpx.TransportError:  # 接続不可・切断・タイムアウト → オフライン応答
-            yield OFFLINE_NOTICE
+        except httpx.TransportError as e:  # 接続不可・切断・タイムアウト → オフライン応答
+            raise LLMUnavailableError(OFFLINE_NOTICE) from e
         except httpx.HTTPStatusError as e:  # 接続はできたがエラー(モデル名違い等)
-            yield (
+            raise LLMUnavailableError(
                 f"(推論サーバーエラー: HTTP {e.response.status_code})"
                 f"モデル名 '{self._model}' が存在するか、設定の llm.chat_model を確認してください。"
-            )
+            ) from e
 
     async def is_reachable(self) -> bool:
         try:

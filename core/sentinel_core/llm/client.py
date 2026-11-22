@@ -9,9 +9,20 @@ from typing import Protocol
 Message = dict[str, str]
 
 
+class LLMUnavailableError(Exception):
+    """推論サーバーに接続できない・エラーを返した。
+
+    メッセージはそのままユーザーに見せる案内文。モデルの発言ではないので、
+    会話履歴には保存しない(次のターンでLLMに渡ると、記憶を汚すため)。
+    """
+
+
 class LLMClient(Protocol):
     def stream_chat(self, messages: list[Message]) -> AsyncIterator[str]:
-        """messages(OpenAI形式)を受け、応答テキストのデルタを順に返す。"""
+        """messages(OpenAI形式)を受け、応答テキストのデルタを順に返す。
+
+        推論サーバーが使えないときは LLMUnavailableError を送出する。
+        """
         ...
 
     async def is_reachable(self) -> bool:

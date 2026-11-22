@@ -29,6 +29,10 @@ TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://l
 VITE_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
+# kv に保存する「最後に選んだキャラ」のキー
+ACTIVE_CHARACTER_KEY = "character.active"
+
+
 def allowed_origins(dev: bool) -> list[str]:
     return TAURI_ORIGINS + (VITE_DEV_ORIGINS if dev else [])
 
@@ -63,7 +67,15 @@ def create_app(
     app.state.token = token
     app.state.hub = EventHub()
     app.state.store = Store(settings.db_path)
-    app.state.characters = CharacterRegistry(settings.characters_dir)
+    store: Store = app.state.store
+
+    def remember_character(char_id: str | None) -> None:
+        store.set_state(ACTIVE_CHARACTER_KEY, char_id or "none")
+
+    app.state.characters = CharacterRegistry(settings.characters_dir, on_change=remember_character)
+    # 起動時のキャラ(B7): 前回選んだもの > 設定の character.active > 汎用モード
+    initial = store.get_state(ACTIVE_CHARACTER_KEY) or settings.data["character"].get("active")
+    app.state.characters.activate(initial, remember=False)
     app.state.llm = llm or OpenAICompatClient(
         endpoint=settings.llm_endpoint,
         model=settings.chat_model,

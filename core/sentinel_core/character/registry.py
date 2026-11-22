@@ -7,14 +7,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from sentinel_core.character.pack import CharacterPack, load_pack
 
 
 class CharacterRegistry:
-    def __init__(self, characters_dir: Path) -> None:
+    def __init__(
+        self,
+        characters_dir: Path,
+        on_change: Callable[[str | None], None] | None = None,
+    ) -> None:
+        """on_change: 利用者が選び直したときに呼ぶ(選択を保存して再起動後も保つため)。"""
         self._dir = characters_dir
+        self._on_change = on_change
         self._packs: dict[str, CharacterPack] = {}
         self._active: str | None = None
         self.rescan()
@@ -29,14 +36,22 @@ class CharacterRegistry:
     def list(self) -> list[CharacterPack]:
         return list(self._packs.values())
 
-    def activate(self, char_id: str | None) -> CharacterPack | None:
-        """char_id=None/'none' で汎用モードへ。フォールバック連鎖(§16.3)。"""
+    def activate(self, char_id: str | None, *, remember: bool = True) -> CharacterPack | None:
+        """char_id=None/'none' で汎用モードへ。フォールバック連鎖(§16.3)。
+
+        remember=True なら、切り替えに成功したとき on_change で選択を保存する。
+        失敗(Packが無い・壊れている)は保存しない: Packを直せば次回の起動で戻る。
+        """
         if not char_id or char_id == "none":
             self._active = None
+            if remember and self._on_change:
+                self._on_change(None)
             return None
         pack = self._packs.get(char_id)
         if pack and pack.valid:
             self._active = char_id
+            if remember and self._on_change:
+                self._on_change(char_id)
             return pack
         self._active = None  # 失敗時は汎用モードで動き続ける
         return None

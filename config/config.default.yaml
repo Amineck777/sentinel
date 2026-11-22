@@ -1,4 +1,6 @@
 # 出荷既定値(仕様 §8)。ユーザー差分は {APP_DATA}/sentinel/config.yaml に置く。
+# 正は core/sentinel_core/settings.py の DEFAULTS。このファイルは読むための写しで、
+# 両者の一致は core/tests/test_settings.py が検査する(片方だけ変えるとテストが落ちる)。
 llm:
   endpoint: "http://127.0.0.1:11434/v1"
   chat_model: "qwen2.5:7b-instruct"   # 例。Phase 0の計測結果で差し替える

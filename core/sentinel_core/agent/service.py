@@ -2,7 +2,7 @@
 
 POST /v1/chat から呼ばれ、即座に (session_id, message_id) を返し、
 生成本体はバックグラウンドタスクが hub へ token/message_done イベントを流す。
-Phase 3 でこの生成部を LangGraph のグラフ実行(graph.py)へ差し替える。
+この生成部は Pydantic AI のエージェント実行へ差し替える予定(ADR-0102)。
 差し替え点をこのクラスに閉じ込めてある。
 """
 
@@ -13,7 +13,7 @@ import asyncio
 from sentinel_core.agent.prompts import system_prompt
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
-from sentinel_core.llm.client import LLMClient
+from sentinel_core.llm.client import LLMClient, LLMUnavailableError
 from sentinel_core.memory.store import Store
 
 
@@ -69,11 +69,19 @@ class ChatService:
             async for delta in self._llm.stream_chat(messages):
                 parts.append(delta)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
+        except LLMUnavailableError as e:
+            # オフライン応答などの案内文は通知として見せ、履歴には残さない
+            await self._hub.publish({"type": "notice", "level": "warn", "text": str(e)})
         except Exception as e:  # 予期しない失敗もUIへ通知して終端する(無言で固まらせない)
             await self._hub.publish(
                 {"type": "notice", "level": "error", "text": f"生成エラー: {e}"}
             )
-        full = "".join(parts) or "(応答なし)"
+
+        # 保存するのはモデルが実際に生成した文だけ(途中で切れた場合はそこまで)。
+        # 何も生成されなかったターンは assistant 発言を作らない
+        full = "".join(parts)
+        if not full:
+            return
         mid = self._store.add_message(session_id, "assistant", full)
         await self._hub.publish(
             {"type": "message_done", "session_id": session_id, "message_id": mid}

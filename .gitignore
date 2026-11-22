@@ -21,6 +21,7 @@ app/src-tauri/binaries/*
 *.db
 *.db-wal
 *.db-shm
+*.db.bak-*
 logs/
 
 # --- Character Pack・学習成果物(仕様 §19.3: 私的学習物はリポジトリへ含めない)---
