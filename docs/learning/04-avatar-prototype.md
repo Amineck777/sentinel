@@ -49,7 +49,7 @@ avatar.html ─ src/avatar.tsx ─ AvatarApp.tsx(操作パネル, React)
 ```powershell
 # 1. モデルの場所を教える(このファイルは .gitignore 済み。作者の PC には作成済み)
 #    メモ帳で app\.env.local を作り、次の1行を書いて保存する
-#    SENTINEL_AVATAR_VRM=C:/Users/harut/Downloads/vrd000_papeco_ver3/vrd000_papeco_ver3/■VRM/vrd000_papeco_ver2_ps.vrm
+#    SENTINEL_AVATAR_VRM=C:/path/to/model.vrm   (区切りは / が安全。実際の場所はリポジトリに書かない)
 # 2. 開発サーバー
 cd app; npm run dev
 # 3. ブラウザで http://localhost:5173/avatar.html
@@ -76,6 +76,7 @@ cd app; npm run dev
 判断:**手元でテスト表示するだけなら問題ない**。いちばん厳しい VRM メタに合わせて、次を守る。
 
 - モデル・テクスチャをリポジトリ・インストーラ・Release に入れない(`.gitignore` に `*.vrm` `*.vroid` を追加)
+- 万一 `git add -f` などで入れても、CI の「モデルファイル混入チェック」が落ちて気づける
 - 商用利用しない。性的・暴力的な表現に使わない
 - 画面写真を公開するなら「puppet end ぱぺこ(作:ぬぁろ)」と明記し、自作と言わない
 - 規約本文は未確認なので、配信・公開に使う前に作者の X(@NoaaRo_)か BOOTH で本文を確かめる
