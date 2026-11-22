@@ -35,3 +35,8 @@ training/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# --- アバターモデル(配布規約で再配布禁止のものがあるため、リポジトリに入れない。ADR 0109)---
+*.vrm
+*.vroid
+app/.env.local

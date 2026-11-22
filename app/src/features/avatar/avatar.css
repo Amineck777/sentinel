@@ -1,0 +1,139 @@
+/* アバター試作ページ。背景は透明にしておき、色はページ側で付ける(透明窓に載せたときに外せるように) */
+:root {
+  --av-bg: #eef1f5;
+  --av-panel: rgba(255, 255, 255, 0.92);
+  --av-text: #1d2430;
+  --av-muted: #5b6575;
+  --av-accent: #2f6fd6;
+  --av-border: #d3d9e2;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --av-bg: #161a21;
+    --av-panel: rgba(30, 35, 45, 0.92);
+    --av-text: #e6e9ef;
+    --av-muted: #9aa3b2;
+    --av-accent: #6ea0ff;
+    --av-border: #343b48;
+  }
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: var(--av-bg);
+  color: var(--av-text);
+  font-family: system-ui, "Yu Gothic UI", "Meiryo", sans-serif;
+  font-size: 14px;
+}
+.avatar-page {
+  position: relative;
+  height: 100%;
+  display: flex;
+}
+.avatar-canvas {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: block;
+}
+.avatar-overlay {
+  position: absolute;
+  inset: 0 300px 0 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  pointer-events: none;
+  color: var(--av-muted);
+}
+.avatar-error {
+  color: #d64545;
+}
+.avatar-panel {
+  width: 300px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--av-panel);
+  border-left: 1px solid var(--av-border);
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+.avatar-panel section {
+  margin-bottom: 18px;
+  display: grid;
+  gap: 8px;
+}
+.avatar-panel h2 {
+  font-size: 13px;
+  margin: 0;
+  color: var(--av-muted);
+}
+.avatar-panel dl {
+  display: grid;
+  grid-template-columns: 3em 1fr;
+  gap: 2px 8px;
+  margin: 0;
+}
+.avatar-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.avatar-small {
+  font-size: 12px;
+  color: var(--av-muted);
+}
+.avatar-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.avatar-panel button {
+  padding: 6px 4px;
+  border: 1px solid var(--av-border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.avatar-panel button.on {
+  background: var(--av-accent);
+  border-color: var(--av-accent);
+  color: #fff;
+}
+.avatar-panel label {
+  display: grid;
+  gap: 4px;
+}
+.avatar-panel .avatar-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.avatar-panel textarea {
+  font: inherit;
+  resize: vertical;
+}
+.avatar-panel audio {
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .avatar-page {
+    flex-direction: column;
+  }
+  .avatar-canvas {
+    height: 55%;
+    flex: none;
+  }
+  .avatar-overlay {
+    inset: 0 0 45% 0;
+  }
+  .avatar-panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--av-border);
+  }
+}

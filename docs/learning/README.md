@@ -11,6 +11,7 @@
 | 01 | [全体像](01-architecture.md) | 2プロセス構成、起動の握手、イベントの流れ、どこに何があるか | なし |
 | 02 | [デスクトップアプリが動かなかった理由](02-desktop-shell-fixes.md) | CORS、debug/release の違い、ホットキー、ログ、Windows ビルド | 01 |
 | 03 | [記憶の土台](03-memory-foundation.md) | DB の版管理、何を保存するか、設定の優先順位、配布版の自動テスト | 01 |
+| 04 | [アバターの試作](04-avatar-prototype.md) | three-vrm で VRM 表示、表情・瞬き・口パク、モデルの規約確認 | 01 |
 
 ## ノートの書き方(自分用ルール)
 
@@ -39,3 +40,7 @@ Claude Code では `/learn-note` で下書きを作れます(`.claude/skills/lea
 | Character Pack | キャラの人格・口調をまとめたフォルダ。置けば増え、消せば消える |
 | ADR | Architecture Decision Record。設計判断を1件1ファイルで残す記録 |
 | マイグレーション | DB の形(スキーマ)を版ごとに順番に変えていく手順 |
+| VRM | 人型 3D アバターの形式。中身は glTF に骨・表情・視線・ライセンスを足したもの。0.x と 1.0 がある |
+| three-vrm | pixiv 製の、three.js で VRM を扱うライブラリ。`@pixiv/three-vrm` |
+| 正規化ボーン | モデルごとの骨の向きの違いを吸収した仮想の骨。同じ角度で同じ姿勢になる |
+| ビゼム(viseme) | 口の形の単位。ここでは 5 母音(aa/ih/ou/ee/oh)と「閉じ」 |
