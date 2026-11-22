@@ -66,12 +66,12 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 | OpenAI互換LLMクライアント(Ollama) | ✅ 実装済(**未接続時はオフライン応答へ自動フォールバック**=LLMなしでもUI開発可) | `llm/client.py`(抽象), `llm/openai_compat.py` |
 | 会話永続化(ME-01/02の土台) | ✅ 実装済(SQLite: sessions/messages) | `memory/store.py` |
 | Character Packロード(CH-01/02=口調Lv1) | ✅ 実装済(ロード=pack / 口調合成=persona / 走査・切替=registry) | `character/pack.py`, `character/persona.py`, `character/registry.py`, `api/http/characters.py` |
-| Tauriシェル(sidecar・トレイ・ホットキー) | 🔶 実装済・Linuxで `cargo check`(debug/release)と clippy 通過。Windows実機での `tauri dev` / `tauri build` は未確認(§9) | `app/src-tauri/src/*.rs` |
+| Tauriシェル(sidecar・トレイ・ホットキー) | ✅ 2026-11-22 Windows実機で `tauri dev`(dev コア接続・ホットキー・トレイ)と `tauri build`(sidecar 自動起動)を確認。CI で clippy(Windows) | `app/src-tauri/src/*.rs` |
 | チャットUI+ステータスレール | ✅ 実装済(接続=useCore / 会話=useChat / 表示コンポーネント3分割) | `app/src/features/chat/` |
 | Function Calling・承認ゲート(AC-06) | ⬜ Phase 2(hubに`approval_required`イベント型だけ予約済み) | — |
 | RAG / LangGraph / MCP | ⬜ Phase 3 | — |
 | 音声(STT/TTS) | ⬜ Phase 4 / Track X2 | — |
-| PyInstaller sidecar化 | 🔶 スクリプト提供(実行は各OSで) | `scripts/build_sidecar.py` |
+| PyInstaller sidecar化 | ✅ Windows で生成・起動を確認(2026-11-22)。他OSは未確認 | `scripts/build_sidecar.py` |
 
 **テストでのLLM差し替え:** `create_app(..., llm=モック)` のDI引数で行う
 (アプリ生成後の `app.state.llm` 差し替えは `ChatService` が参照を掴んでいるため効かない)。
@@ -182,5 +182,5 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
 | B4 | uvicorn が WS の URL を `?token=` ごとログに出し、Rust 側が stderr に出力していた | uvicorn のロガーにマスクフィルタ |
 | B5 | アイコンが 32×32 の png のみで、Windows ビルドに必要な `icon.ico` がない | `tauri icon` で一式を生成(元画像 `icons/app-icon.png`) |
 
-**未確認:** Windows 実機での `make tauri-dev`(ホットキー・トレイ・dev コア接続)と `make bundle`(sidecar 同梱・起動)。
+**確認済(2026-11-22, Windows 実機):** `tauri dev` でdev コア接続・Ctrl+Shift+Space の開閉・トレイ、`tauri:bundle` でインストーラ生成と sidecar の自動起動(B9 は Windows では発生せず)。
 
