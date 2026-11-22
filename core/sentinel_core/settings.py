@@ -1,6 +1,8 @@
 """設定ロード(仕様 §8)。
 
-config.default.yaml(リポジトリ同梱の既定値)にユーザー差分をマージする。
+既定値は下の DEFAULTS が唯一の正(sidecar 単体で動くよう、外部ファイルに頼らない)。
+ユーザー差分 {APP_DATA}/sentinel/config.yaml をこれにマージする。
+config/config.default.yaml は既定値を人が読むための写しで、テストで DEFAULTS と一致を検査する。
 不正・欠損は起動失敗にせず既定値へフォールバック(配布後サポアビリティ)。
 パス解決は platformdirs 準拠(仕様 §5.5: OS依存の隔離)。
 """

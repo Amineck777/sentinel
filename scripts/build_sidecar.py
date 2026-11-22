@@ -29,6 +29,8 @@ def target_triple() -> str:
 
 
 def main() -> None:
+    # Windows の CI ではパイプ出力が cp1252 になり、日本語の print で落ちるため UTF-8 に揃える
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
     triple = target_triple()
     ext = ".exe" if platform.system() == "Windows" else ""
     name = f"sentinel-core-{triple}{ext}"
@@ -49,7 +51,7 @@ def main() -> None:
     dest = OUT_DIR / name
     shutil.copy2(built, dest)
     print(f"sidecar -> {dest}")
-    print("次: cd app && npm run tauri build")
+    print("次: python scripts/smoke_sidecar.py で起動確認 → cd app && npm run tauri:bundle")
 
 
 if __name__ == "__main__":

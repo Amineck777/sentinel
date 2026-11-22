@@ -63,15 +63,15 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
 | チャットAPI(受付のみの薄いルーター) | ✅ 実装済 | `api/http/chat.py` |
 | 会話ターン生成(EX-01・Phase 3差し替え点) | ✅ 実装済 | `agent/service.py`, `agent/prompts.py` |
 | WSストリーミング+イベントハブ | ✅ 実装済 | `api/ws/stream.py`, `events.py` |
-| OpenAI互換LLMクライアント(Ollama) | ✅ 実装済(**未接続時はオフライン応答へ自動フォールバック**=LLMなしでもUI開発可) | `llm/client.py`(抽象), `llm/openai_compat.py` |
-| 会話永続化(ME-01/02の土台) | ✅ 実装済(SQLite: sessions/messages) | `memory/store.py` |
+| OpenAI互換LLMクライアント(Ollama) | ✅ 実装済(**未接続時はオフライン応答を通知で表示**=LLMなしでもUI開発可。履歴には保存しない) | `llm/client.py`(抽象), `llm/openai_compat.py` |
+| 会話永続化(ME-01/02の土台) | ✅ 実装済(SQLite: sessions/messages/kv。`user_version` で版管理し、移行前に自動退避) | `memory/store.py` |
 | Character Packロード(CH-01/02=口調Lv1) | ✅ 実装済(ロード=pack / 口調合成=persona / 走査・切替=registry) | `character/pack.py`, `character/persona.py`, `character/registry.py`, `api/http/characters.py` |
 | Tauriシェル(sidecar・トレイ・ホットキー) | ✅ 2026-11-22 Windows実機で `tauri dev`(dev コア接続・ホットキー・トレイ)と `tauri build`(sidecar 自動起動)を確認。CI で clippy(Windows) | `app/src-tauri/src/*.rs` |
 | チャットUI+ステータスレール | ✅ 実装済(接続=useCore / 会話=useChat / 表示コンポーネント3分割) | `app/src/features/chat/` |
 | Function Calling・承認ゲート(AC-06) | ⬜ Phase 2(hubに`approval_required`イベント型だけ予約済み) | — |
 | RAG / LangGraph / MCP | ⬜ Phase 3 | — |
 | 音声(STT/TTS) | ⬜ Phase 4 / Track X2 | — |
-| PyInstaller sidecar化 | ✅ Windows で生成・起動を確認(2026-11-22)。他OSは未確認 | `scripts/build_sidecar.py` |
+| PyInstaller sidecar化 | ✅ Windows で生成・起動を確認(2026-11-22)。CI で Windows/Linux の起動スモーク | `scripts/build_sidecar.py`, `scripts/smoke_sidecar.py` |
 
 **テストでのLLM差し替え:** `create_app(..., llm=モック)` のDI引数で行う
 (アプリ生成後の `app.state.llm` 差し替えは `ChatService` が参照を掴んでいるため効かない)。
@@ -102,8 +102,9 @@ dev モードではstdin監視を無効化する(ターミナルのstdinで誤�
   `rustc -vV`からトリプルを取得して自動命名する
 - PyInstallerは当面 `--onefile`(単一ファイル=externalBinに素直に載る)。
   起動が遅い場合は onedir + resources 方式へ移行(ADR起票の上)
-- **sidecarスモークCI**(§14.2):ビルド成果物を起動→handshake→/health確認
-  だけを行うテストを、機能追加より先にCIへ入れること
+- **sidecarスモークCI**(§14.2):✅ 導入済(2026-11-22)。`scripts/smoke_sidecar.py` が
+  ビルド成果物を managed モードで起動→handshake→/health→stdin を閉じて終了、を確認する。
+  CI の `sidecar` ジョブが Windows と Linux で実行
 
 ## 6. セキュリティ実装の要点(§13対応)
 
@@ -140,13 +141,13 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
 | 4 | 同期SQLiteをイベントループ上で直接実行(クエリが軽微なため) | RAG導入(Phase 3)で重いクエリが入る時に`asyncio.to_thread`/aiosqlite化 |
 | 5 | アクティブキャラがプロセスグローバル(`CharacterRegistry._active`) | セッション毎キャラが必要になったら`sessions.character_id`へ紐づけ直す |
 | 6 | EventHubは全WS接続へファンアウト(UI側で`session_id`フィルタ) | 複数ウィンドウ・承認イベント(Phase 2)導入時にセッション購読制へ |
-| 7 | オフライン応答・エラー文言もassistantメッセージとして履歴保存され、後続ターンでLLMへ文脈として渡る | 実LLM接続後に会話品質へ影響が見えたら、保存スキップかrole分離 |
+| 7 | ~~オフライン応答・エラー文言もassistantメッセージとして履歴保存される~~ | ✅ 解消(2026-11-22)。案内文は `notice` で表示し保存しない。モデルが生成した文だけを保存(§10) |
 | 8 | WSトークンがURLクエリ(§2で規定どおり)・`_find_free_port`のTOCTOU | 低優先の既知事項として記録のみ |
 
 ### 7.3 導入すべきもの(推奨順)
 
 1. **CI** — ✅導入済み(`.github/workflows/ci.yml`: pytest+フロントビルド)。
-   **sidecarスモーク**(§5)はPhase 2着手前に追加すること
+   ✅ **sidecarスモーク**(§5)も導入済み(2026-11-22)
 2. ✅ **ruff + mypy / ESLint + Prettier**(仕様§5.4)— 導入済み(2026-07-08)。
    ruffはE/F/W/I/UP/B/SIM+`ruff format`、mypyは**strict**(`core/pyproject.toml`)。
    ESLintはflat config+react-hooks、整形はPrettier(`app/eslint.config.js`)。
@@ -166,7 +167,7 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
    Function Calling対応に。承認ゲートは`hub`の`approval_required`イベント+
    `POST /v1/approvals/{id}` を先に固定(UIと同時に)
 2. **Track X0:** Character管理UI(一覧・切替は実装済API `/v1/characters` を叩くだけ)
-3. **CI:** GitHub Actionsで `make test` + sidecarスモーク(§5)
+3. ~~**CI:** GitHub Actionsで `make test` + sidecarスモーク(§5)~~ ✅ 導入済み
 
 ## 9. 不具合修正の記録(2026-11-22)
 
@@ -184,3 +185,13 @@ tsc+viteビルド成功。**未検証:** Rust/Tauri部分のコンパイル(要�
 
 **確認済(2026-11-22, Windows 実機):** `tauri dev` でdev コア接続・Ctrl+Shift+Space の開閉・トレイ、`tauri:bundle` でインストーラ生成と sidecar の自動起動(B9 は Windows では発生せず)。
 
+## 10. 記憶の土台(2026-11-22)
+
+2027年1月から会話を長期の一次記録として貯め始める前に、記録を汚さない・失わないための仕組みを入れた。
+
+| # | 内容 | 実装 |
+|---|---|---|
+| B8 | DB の版管理がなかった | `memory/store.py` の `MIGRATIONS` に版ごとの SQL を並べ、`PRAGMA user_version` に適用済みの版を記録する。**版を上げるときは末尾に追加するだけで、既存の項目は書き換えない。** 中身のある DB を移行する前に `sentinel.db.bak-v{旧版}` へ複製する。版ごとに1トランザクションで、失敗した版は丸ごと取り消す。アプリより新しい版の DB は開かずに止める(`SchemaTooNewError`) |
+| — | オフライン応答・エラー文が AI の発言として保存され、次のターンで LLM に渡っていた | LLM クライアントは推論サーバーが使えないとき `LLMUnavailableError` を送出し、`ChatService` が `notice`(warn)で表示する。保存するのはモデルが実際に生成した文だけ。途中で切れたらそこまでを保存し、何も生成されなければ assistant 発言を作らない |
+| B6 | `config/config.default.yaml` が読まれず、既定値が `settings.py` と二重管理だった | 正は `settings.py` の `DEFAULTS`(sidecar 単体で動くよう外部ファイルに頼らない)。yaml は読むための写しとし、`tests/test_settings.py` で一致を検査する |
+| B7 | 設定の `character.active` が起動時に反映されず、選んだキャラも再起動で汎用モードに戻った | 起動時のキャラは「前回選んだもの(DB の `kv`)> 設定の `character.active` > 汎用モード」。選び直すと `kv` に保存する。Pack が一時的に無いときは汎用モードで動くが、選択は消さない |

@@ -1,5 +1,5 @@
 # CI(実装方針 §7.3-1)。コアのテストとフロントの型チェック+ビルドを回す。
-# sidecarスモーク(ビルド成果物の起動→handshake→/health)はPhase 2着手前に追加する。
+# sidecar ジョブで、配布用の単体実行ファイルが起動できるかも確かめる(方針 §5)。
 name: ci
 
 on:
@@ -10,11 +10,15 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 下限(pyproject の requires-python)と、ロードマップの標準版
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - name: Install core with dev deps
         run: pip install -e "./core[dev]"
       - name: Lint (ruff + format check)
@@ -72,3 +76,23 @@ jobs:
           cargo clippy -- -D warnings
           cargo clippy --release -- -D warnings
         working-directory: app/src-tauri
+
+  # 配布用 sidecar(PyInstaller)を作って実際に起動する。
+  # handshake・/health・stdin を閉じたときの終了を確かめる(PyInstaller の import 漏れ=B9 を検出)
+  sidecar:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install core + PyInstaller
+        run: pip install ./core pyinstaller
+      - name: Build sidecar
+        run: python scripts/build_sidecar.py
+      - name: Smoke test sidecar
+        run: python scripts/smoke_sidecar.py
