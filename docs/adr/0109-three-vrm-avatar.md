@@ -18,3 +18,6 @@ three.js + @pixiv/three-vrm で描画し、VTube Studio 連携は廃止する。
 
 ## 結果
 モデルファイルはリポジトリに入れない。使う前に配布規約と VRM メタ情報を確認して記録する。
+
+## 記録
+- 2026-11-22 テストモデル「ぱぺこ」(puppet end, 作:ぬぁろ, VRM 0.x)を確認。VRM メタは商用・性的・暴力 Disallow、再配布禁止。VRoid Hub 表記はアバター利用・改変 OK、再配布 NG。手元のテスト表示に限って使い、リポジトリには入れない。詳細は `docs/learning/04-avatar-prototype.md`

@@ -35,6 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 配布規約で再配布禁止のモデルがあるため、モデル類が追跡されていたら落とす(ADR 0109)
+      - name: Guard against committed avatar models
+        run: |
+          if git ls-files | grep -iE '\.(vrm|vroid|unitypackage|psd)$|(^|/)\.env\.local$'; then
+            echo "::error::アバターモデル等がリポジトリに含まれています。git rm --cached で外してください"
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 20
