@@ -10,8 +10,9 @@ export function StatusRail(props: {
   characters: Character[];
   active: string;
   onSwitchCharacter: (id: string) => void;
+  onOpenSettings: () => void;
 }) {
-  const { coreState, health, characters, active, onSwitchCharacter } = props;
+  const { coreState, health, characters, active, onSwitchCharacter, onOpenSettings } = props;
   return (
     <header className="rail">
       <span className="brand">SENTINEL</span>
@@ -33,6 +34,24 @@ export function StatusRail(props: {
           ))}
         </select>
       </label>
+      <button className="gear" onClick={onOpenSettings} aria-label="設定" title="設定">
+        <GearIcon />
+      </button>
     </header>
+  );
+}
+
+/** 歯車アイコン(アイコン集に頼らず、線の SVG で描く) */
+function GearIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9c.26.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.65 0-1.25.4-1.51 1Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

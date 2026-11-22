@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "avatar",
+  "description": "アバター窓(ADR 0109)。枠なし窓を掴んで動かすため start-dragging だけ足す。コアへの接続権限は持たせない",
+  "windows": [
+    "avatar"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}
