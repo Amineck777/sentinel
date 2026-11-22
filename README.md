@@ -32,6 +32,15 @@ make bundle       # sidecar化 + インストーラ生成(要: pip install pyins
 
 詳細は `docs/implementation-policy.md`(実装方針)を参照。
 
+## 学習ノートと Claude Code スキル
+
+- `docs/learning/` … なぜこう作ったか・何でつまずいたかを残す学習ノート(読む順番は README)
+- `.claude/skills/` … Claude Code で使えるスキル
+  - `/sentinel-check` コミット前に CI と同じ検査を回す
+  - `/windows-verify` Windows 実機での確認手順
+  - `/learn-note` 変更を学習ノートにまとめる
+  - `/adr` 設計判断を ADR として記録する
+
 ## 構成
 
 ```
