@@ -14,7 +14,12 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 fn toggle_main_window(app: &tauri::AppHandle) {
-    if let Some(win) = app.get_webview_window("main") {
+    toggle_window(app, "main");
+}
+
+/// 窓の表示・非表示を切り替える。窓は tauri.conf.json の label で指す
+fn toggle_window(app: &tauri::AppHandle, label: &str) {
+    if let Some(win) = app.get_webview_window(label) {
         if win.is_visible().unwrap_or(false) {
             let _ = win.hide();
         } else {
@@ -81,13 +86,16 @@ fn main() {
 
             // --- トレイ常駐(EX-05) ---
             let show = MenuItem::with_id(app, "show", "SENTINELを表示", true, None::<&str>)?;
+            let avatar =
+                MenuItem::with_id(app, "avatar", "アバターを表示/隠す", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &avatar, &quit])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => toggle_main_window(app),
+                    "avatar" => toggle_window(app, "avatar"),
                     "quit" => app.exit(0),
                     _ => {}
                 })

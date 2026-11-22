@@ -16,7 +16,24 @@
         "width": 920,
         "height": 680,
         "minWidth": 480,
-        "minHeight": 360
+        "minHeight": 360,
+        "label": "main"
+      },
+      {
+        "label": "avatar",
+        "title": "SENTINEL Avatar",
+        "url": "avatar.html",
+        "width": 360,
+        "height": 560,
+        "minWidth": 200,
+        "minHeight": 240,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

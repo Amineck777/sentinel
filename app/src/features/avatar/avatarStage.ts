@@ -34,7 +34,7 @@ export class AvatarStage {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly controls: OrbitControls;
+  private readonly controls: OrbitControls | null;
   private lastTime = performance.now();
   private readonly resizeObserver: ResizeObserver;
   private vrm: VRM | null = null;
@@ -58,7 +58,10 @@ export class AvatarStage {
   private analyser: AnalyserNode | null = null;
   private analyserBuf: Float32Array<ArrayBuffer> | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    options: { orbit?: boolean } = {},
+  ) {
     // alpha: true で背景を透明にしておく(後で透明・枠なしの Tauri 窓に載せるため)
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -66,9 +69,14 @@ export class AvatarStage {
 
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
     this.camera.position.set(0, 1.35, 1.6);
-    this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.target.set(0, 1.3, 0);
-    this.controls.update();
+    const target = new THREE.Vector3(0, 1.3, 0);
+    this.camera.lookAt(target);
+    // ドラッグで回す・ホイールで寄る。デスクトップ表示ではドラッグを窓の移動に使うので付けない
+    this.controls = options.orbit === false ? null : new OrbitControls(this.camera, canvas);
+    if (this.controls) {
+      this.controls.target.copy(target);
+      this.controls.update();
+    }
 
     const light = new THREE.DirectionalLight(0xffffff, Math.PI);
     light.position.set(1, 1, 1).normalize();
@@ -142,7 +150,7 @@ export class AvatarStage {
   dispose(): void {
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
-    this.controls.dispose();
+    this.controls?.dispose();
     if (this.vrm) VRMUtils.deepDispose(this.vrm.scene);
     this.renderer.dispose();
   }

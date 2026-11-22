@@ -137,3 +137,27 @@ body {
     border-top: 1px solid var(--av-border);
   }
 }
+
+/* パネルを閉じたら、文字の案内もキャンバス全体の中央に出す */
+.panel-closed .avatar-overlay {
+  inset: 0;
+}
+
+/* Tauri の透明窓(デスクトップ表示)。背景を消して、キャラだけが机の上に立って見えるようにする */
+html.avatar-desktop,
+html.avatar-desktop body {
+  background: transparent;
+}
+html.avatar-desktop .avatar-canvas {
+  cursor: grab;
+}
+html.avatar-desktop .avatar-overlay {
+  color: #fff;
+  text-shadow: 0 0 4px #000;
+}
+html.avatar-desktop .avatar-panel {
+  /* 窓が細いので、パネルは横に並べずキャンバスの上に重ねる */
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(300px, 100%);
+}

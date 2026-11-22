@@ -91,9 +91,28 @@ cd app; npm run dev
 - **ビルドで 500kB 超の警告**:three.js が大きいため。アバターは別ページ(`avatar.html`)に分けたので、チャット画面の読み込みは重くならない
 - **最初の1回だけ自動読み込みされない**ことがあった:開発サーバーの起動直後で `/__avatar/model.vrm` がまだ返らなかったため。再読み込みで直る
 
+## 透明窓に載せる(ブランチ `feat/avatar-window`)
+
+**一言で:** 同じ `avatar.html` を Tauri の2つ目の窓で開き、窓を透明・枠なし・最前面にする。ページ側は「Tauri の中か」を見て表示を切り替える。
+
+- 窓の定義は `app/src-tauri/tauri.conf.json` の `label: "avatar"`。`transparent`(背景を透かす)、`decorations: false`(枠とタイトルバーを消す)、`alwaysOnTop`(最前面)、`skipTaskbar`、`visible: false`(起動時は隠す)
+- トレイメニューの「アバターを表示/隠す」で出し入れ(`main.rs` の `toggle_window`)
+- 権限は窓ごとに `capabilities/` で渡す。avatar 窓には `core:window:allow-start-dragging` だけ足した(枠なし窓を掴んで動かすため)。コアへの接続はさせない
+- ページ側(`AvatarApp.tsx`):`"__TAURI_INTERNALS__" in window` なら
+  - `<html>` に `avatar-desktop` を付けて背景を透明にする(透明窓でも、ページの背景色が塗られていると透けない)
+  - カメラ回転(OrbitControls)を切り、キャンバスを掴んだら `getCurrentWindow().startDragging()` で窓ごと動かす
+  - ダブルクリックで操作パネルを出し入れ
+- `dragDropEnabled: false`:Tauri は既定で窓へのファイルドロップを横取りするので、HTML 側の `onDrop` で `.vrm` を受けるために切った
+
+**やってみる:** `cd app; npm run tauri dev` → タスクトレイの SENTINEL アイコン →「アバターを表示/隠す」
+
+**ハマりどころ:**
+- `tauri dev` が `Port 5173 is already in use` で止まる:別に `npm run dev` が動いていると、`beforeDevCommand` の vite が起動できない。先に止める
+- 配布版(release)には開発サーバーが無いので `/__avatar/model.vrm` は使えない。今はドロップで読む(モデルの置き場所の設定は今後)
+
 ## 次の段階(未着手)
 
-1. Tauri に透明・枠なし・最前面の `avatar` 窓を足し、この画面を載せる(クリック透過は別途)
+1. 窓のクリック透過(キャラ以外の透明な部分をクリックしたら後ろの窓に届くようにする)と、位置・大きさの記憶
 2. VOICEVOX の `audio_query` はモーラごとに母音と長さを返すので、文字からの推測をやめて正確な口パクにする
 3. コアの感情(PAD → ラベル、ADR 0107)を WebSocket で受けて `setEmotion` に流す
 
@@ -104,3 +123,5 @@ cd app; npm run dev
 3. 表情の重みを `dt` を使って近づけるのはなぜか
 4. 「きゃ」「ん」「ー」はそれぞれ口の形にどう変換されるか
 5. このテストモデルで、してはいけないことを3つ挙げよ
+6. 透明窓にしたのに背景が透けないとき、まず何を疑うか
+7. avatar 窓に `start-dragging` の権限が必要なのはなぜか
