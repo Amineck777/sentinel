@@ -35,6 +35,20 @@ SENTINEL は**system を送らない**・**思考を切る**・**返答をモデ
 - DB の版3(`messages.model` 列): `core/sentinel_core/memory/store.py` の `_V3`
 - 私的 Pack を入れる道具: `scripts/install_pack.py`
 
+### 起動したらエヴァから挨拶する
+
+画面はキャラ一覧を読み終えたら `POST /v1/chat/greet` を1回呼ぶ(キャラを切り替えたときも)。
+コアは「マスターがアプリを起動しました。今は○時○分、夜です。短く挨拶して」という**合図**を
+user として履歴の後ろに足して生成する。合図は**保存しない**ので、DB には挨拶(assistant)だけが残る。
+時刻を渡すのは、夜に「おはようございます」と言わせないため(コアは利用者のPCで動くのでローカル時刻でよい)。
+汎用モードでは挨拶しない。
+
+- 合図の文と時間帯: `core/sentinel_core/agent/service.py` の `greeting_cue`
+- 画面側: `app/src/features/chat/ChatView.tsx`(起動時1回・切替時)
+
+キャラ切替の「キャラクター: エヴァ」はお知らせ(info)なので、⚠ を付けず小さな灰色の行で出す。
+⚠ は warn / error(Ollama に繋がらない等)だけ。
+
 ### なぜ人格を Pack の .md ではなく Modelfile に置いたままにしたか
 
 人格の正は人格仕様書で、そこから Modelfile を作って `smoke_test` で確かめてある。
@@ -74,3 +88,4 @@ Windows では `%LOCALAPPDATA%\sentinel\sentinel\characters\` になる。
 2. `messages.model` 列が無いと、後で学習データを作るときに何が困るか
 3. 思考オフの指定を受け付けないサーバーで、クライアントはどう振る舞うか
 4. エヴァの Pack をリポジトリの外に置き、コピーで入れるのはなぜか
+5. 挨拶の合図を DB に保存しないのはなぜか(学習データの観点で)

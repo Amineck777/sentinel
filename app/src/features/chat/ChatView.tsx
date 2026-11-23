@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { isTauri } from "../settings/shellSettings";
 import { Composer } from "./Composer";
@@ -9,9 +9,17 @@ import { useCore } from "./useCore";
 
 /** チャット画面。状態は useCore(接続・キャラ)と useChat(会話)に分離。 */
 export function ChatView() {
-  const { core, coreState, health, characters, active, activateCharacter } = useCore();
-  const { msgs, send, resetSession } = useChat(core);
+  const { core, coreState, ready, health, characters, active, activateCharacter } = useCore();
+  const { msgs, send, greet, resetSession } = useChat(core);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 起動したら、キャラから先に挨拶する(1回だけ。汎用モードではコアが何もしない)
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (!ready || greetedRef.current) return;
+    greetedRef.current = true;
+    void greet();
+  }, [ready, greet]);
 
   // トレイの「設定…」からも開けるようにする
   useEffect(() => {
@@ -33,6 +41,7 @@ export function ChatView() {
   const switchCharacter = async (id: string) => {
     await activateCharacter(id);
     resetSession(); // キャラ切替時は新セッション(仕様 §16.3)
+    await greet(); // 切り替えたキャラから挨拶する
   };
 
   return (

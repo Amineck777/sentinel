@@ -31,6 +31,20 @@ async def post_chat(body: ChatIn, request: Request) -> ChatOut:
     return ChatOut(session_id=sid, message_id=mid)
 
 
+class GreetIn(BaseModel):
+    session_id: str | None = None
+
+
+class GreetOut(BaseModel):
+    session_id: str | None  # 汎用モードでは挨拶しないので None
+
+
+@router.post("/chat/greet", response_model=GreetOut)
+async def post_greet(body: GreetIn, request: Request) -> GreetOut:
+    """キャラから先に話しかける(起動時・キャラ切替時に画面が呼ぶ)。"""
+    return GreetOut(session_id=request.app.state.chat.start_greeting(body.session_id))
+
+
 @router.get("/sessions")
 async def list_sessions(request: Request) -> dict[str, Any]:
     return {"sessions": request.app.state.store.list_sessions()}

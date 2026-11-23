@@ -166,3 +166,47 @@ def test_think_on_sends_nothing_extra():
     client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     assert asyncio.run(_collect(client)) == "ok"
     assert "reasoning_effort" not in seen[0]
+
+
+# --- 起動時の挨拶 ---
+
+
+def test_greeting_is_spoken_first_and_cue_is_not_saved(tmp_path: Path):
+    settings = Settings.load(data_dir=tmp_path)
+    _write_pack(settings.characters_dir / "eva", EVA_YAML)
+    llm = RecordingLLM()
+    app = create_app(settings=settings, token=TOKEN, dev=True, llm=llm)
+    with TestClient(app) as c:
+        assert c.post("/v1/characters/eva/activate", headers=H).json()["ok"]
+        with c.websocket_connect(f"/v1/stream?token={TOKEN}") as ws:
+            sid = c.post("/v1/chat/greet", headers=H, json={}).json()["session_id"]
+            assert sid
+            while ws.receive_json()["type"] != "message_done":
+                pass
+
+    messages, model = llm.calls[0]
+    assert model == "eva"
+    assert [m["role"] for m in messages] == ["user"]  # 合図だけ(system も履歴も無い)
+    assert "挨拶" in messages[0]["content"]
+    with closing(sqlite3.connect(settings.db_path)) as db:
+        rows = db.execute("SELECT role FROM messages WHERE session_id=?", (sid,)).fetchall()
+    assert rows == [("assistant",)]  # 挨拶だけ残り、合図は残らない
+
+
+def test_no_greeting_in_generic_mode(tmp_path: Path):
+    settings = Settings.load(data_dir=tmp_path)
+    llm = RecordingLLM()
+    app = create_app(settings=settings, token=TOKEN, dev=True, llm=llm)
+    with TestClient(app) as c:
+        assert c.post("/v1/chat/greet", headers=H, json={}).json()["session_id"] is None
+    assert llm.calls == []
+
+
+def test_greeting_cue_matches_time_of_day():
+    from datetime import datetime
+
+    from sentinel_core.agent.service import greeting_cue
+
+    assert "朝" in greeting_cue(datetime(2026, 11, 23, 7, 5))
+    assert "7時05分" in greeting_cue(datetime(2026, 11, 23, 7, 5))
+    assert "深夜" in greeting_cue(datetime(2026, 11, 23, 2, 0))

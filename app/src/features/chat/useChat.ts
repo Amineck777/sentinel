@@ -29,7 +29,12 @@ export function useChat(core: CoreInfo | null) {
           prev.map((m, i) => (i === prev.length - 1 ? { ...m, pending: false } : m)),
         );
       } else if (e.type === "notice") {
-        setMsgs((prev) => [...prev, { role: "assistant", text: `⚠ ${e.text}` }]);
+        // info はただのお知らせ(小さく中央に)。⚠ は注意が要るもの(warn/error)だけに付ける
+        const msg: Msg =
+          e.level === "info"
+            ? { role: "system", text: e.text }
+            : { role: "assistant", text: `⚠ ${e.text}` };
+        setMsgs((prev) => [...prev, msg]);
       }
     });
   }, [core]);
@@ -44,10 +49,20 @@ export function useChat(core: CoreInfo | null) {
     sessionRef.current = r.session_id;
   };
 
+  /** キャラから先に挨拶してもらう(起動時・キャラ切替時)。汎用モードでは何もしない */
+  const greet = async () => {
+    if (!core) return;
+    const r = await api<{ session_id: string | null }>(core, "/chat/greet", {
+      method: "POST",
+      body: JSON.stringify({ session_id: sessionRef.current }),
+    });
+    if (r.session_id) sessionRef.current = r.session_id;
+  };
+
   /** キャラ切替時などに新セッションを開始する(仕様 §16.3: 履歴混線防止) */
   const resetSession = () => {
     sessionRef.current = null;
   };
 
-  return { msgs, send, resetSession } as const;
+  return { msgs, send, greet, resetSession } as const;
 }

@@ -1,4 +1,5 @@
-export type Msg = { role: "user" | "assistant"; text: string; pending?: boolean };
+/** system は画面だけのお知らせ(キャラ切替など)。会話の発言ではない */
+export type Msg = { role: "user" | "assistant" | "system"; text: string; pending?: boolean };
 
 export type Character = { id: string; display_name: string; valid: boolean };
 
