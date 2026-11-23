@@ -4,12 +4,22 @@
 //
 // Tauri の avatar 窓(透明・枠なし・最前面)に載ったときは「デスクトップ表示」になる:
 // 背景を透明にし、操作パネルを隠し、ドラッグで窓ごと動かす。ダブルクリックでパネルを出し入れする。
+// 体以外の透明な部分はクリックが下のアプリへ通る(useClickThrough)。状態・吹き出し・表情は
+// チャット窓からの合図で動く(useAvatarBehavior, ADR 0114)。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getSettings, onSettingsChanged, readAvatarModel } from "../settings/shellSettings";
-import { onLipsync } from "../voice/lipsyncChannel";
+import {
+  DEFAULT_SHELL_SETTINGS,
+  getSettings,
+  onSettingsChanged,
+  readAvatarModel,
+  type ShellSettings,
+} from "../settings/shellSettings";
 import { AvatarStage, EMOTIONS, type Emotion, type ModelInfo } from "./avatarStage";
-import { fitText, fromTriples } from "./lipsync";
+import { Bubble } from "./Bubble";
+import { sendCue, type AvatarState } from "./cueChannel";
+import { useAvatarBehavior } from "./useAvatarBehavior";
+import { HIT_CLASS, useClickThrough } from "./useClickThrough";
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
@@ -29,6 +39,13 @@ const EMOTION_LABEL: Record<Emotion, string> = {
   sad: "かなしい",
   relaxed: "やすらぎ",
   surprised: "おどろき",
+};
+const STATE_LABEL: Record<Exclude<AvatarState, "sleeping">, string> = {
+  idle: "待機",
+  listening: "聞いている",
+  thinking: "考え中",
+  speaking: "話し中",
+  error: "困り",
 };
 
 type Status =
@@ -51,6 +68,24 @@ export function AvatarApp() {
   const [blink, setBlink] = useState(true);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(!IN_TAURI);
+  const [shell, setShell] = useState<ShellSettings>(DEFAULT_SHELL_SETTINGS);
+
+  const getStage = useCallback(() => stageRef.current, []);
+  const getCanvas = useCallback(() => canvasRef.current, []);
+  const behavior = useAvatarBehavior(getStage, {
+    bubble: shell.avatarBubble,
+    bubbleSeconds: shell.avatarBubbleSeconds,
+    emotionStrength: shell.avatarEmotionStrength,
+    sleepMinutes: shell.avatarSleepMinutes,
+  });
+  useClickThrough(getStage, getCanvas, {
+    active: IN_TAURI,
+    // モデルが無いとき・試験パネルを開いているときは、窓全体でクリックを受ける
+    enabled: shell.avatarClickThrough && status.kind === "ready" && !panelOpen,
+  });
+  useEffect(() => {
+    if (stageRef.current) stageRef.current.followCursor = shell.avatarFollowCursor;
+  }, [shell.avatarFollowCursor]);
 
   const load = useCallback(async (url: string, source: string) => {
     const stage = stageRef.current;
@@ -106,9 +141,15 @@ export function AvatarApp() {
         }
       };
       getSettings()
-        .then((s) => sync(s.avatarModelPath))
+        .then((s) => {
+          setShell(s);
+          sync(s.avatarModelPath);
+        })
         .catch(() => void loadDevModel());
-      void onSettingsChanged((s) => sync(s.avatarModelPath)).then((u) => {
+      void onSettingsChanged((s) => {
+        setShell(s);
+        sync(s.avatarModelPath);
+      }).then((u) => {
         if (cancelled) u();
         else unlisten = u;
       });
@@ -124,21 +165,6 @@ export function AvatarApp() {
     };
   }, [load]);
 
-  // チャット窓が声を鳴らし始めたら、その文の口パクをする(エンジンが母音を返さなければ文字から推測)
-  useEffect(
-    () =>
-      onLipsync((msg) => {
-        const stage = stageRef.current;
-        if (!stage) return;
-        if (msg.kind === "stop") stage.stopSpeaking();
-        else
-          stage.speakTimeline(
-            msg.visemes ? fromTriples(msg.visemes) : fitText(msg.text, msg.duration),
-          );
-      }),
-    [],
-  );
-
   useEffect(() => {
     // 背景の透明化は html/body に掛けないと効かないので、ルート要素に印を付ける
     document.documentElement.classList.toggle("avatar-desktop", IN_TAURI);
@@ -151,7 +177,13 @@ export function AvatarApp() {
 
   // 枠なし窓にはタイトルバーが無いので、キャンバスを掴んだら窓ごと動かす
   const onCanvasMouseDown = (e: React.MouseEvent) => {
+    behavior.touch(); // 触ったら起きる
     if (IN_TAURI && e.button === 0 && e.detail === 1) void getCurrentWindow().startDragging();
+  };
+
+  const openChat = () => {
+    if (!IN_TAURI) return;
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("show_chat"));
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -202,6 +234,9 @@ export function AvatarApp() {
         onMouseDown={onCanvasMouseDown}
         onDoubleClick={() => IN_TAURI && setPanelOpen((v) => !v)}
       />
+      {status.kind === "ready" && (
+        <Bubble view={behavior.bubble} onOpenChat={IN_TAURI ? openChat : undefined} />
+      )}
       {status.kind !== "ready" && (
         <div className="avatar-overlay">
           {status.kind === "loading" && <p>読み込み中… {status.source}</p>}
@@ -223,7 +258,7 @@ export function AvatarApp() {
       )}
 
       {panelOpen && (
-        <aside className="avatar-panel">
+        <aside className={`avatar-panel ${HIT_CLASS}`}>
           <section>
             <h2>モデル</h2>
             {status.kind === "ready" ? (
@@ -244,6 +279,36 @@ export function AvatarApp() {
               <p className="avatar-small">未読み込み</p>
             )}
             <input type="file" accept=".vrm" onChange={onPickModel} />
+          </section>
+
+          <section>
+            <h2>状態(いま: {behavior.state})</h2>
+            <div className="avatar-buttons">
+              {(Object.keys(STATE_LABEL) as (keyof typeof STATE_LABEL)[]).map((st) => (
+                <button
+                  key={st}
+                  className={st === behavior.state ? "on" : ""}
+                  onClick={() =>
+                    sendCue(
+                      st === "error"
+                        ? { kind: "state", state: st, detail: "(試験)LLM に接続できません。" }
+                        : { kind: "state", state: st },
+                    )
+                  }
+                >
+                  {STATE_LABEL[st]}
+                </button>
+              ))}
+              <button onClick={() => behavior.sleepNow()}>居眠り</button>
+              <button
+                onClick={() =>
+                  sendCue({ kind: "bubble", text: "お呼びでしょうか、マスター。", final: true })
+                }
+              >
+                吹き出し
+              </button>
+              <button onClick={() => sendCue({ kind: "nod" })}>うなずき</button>
+            </div>
           </section>
 
           <section>

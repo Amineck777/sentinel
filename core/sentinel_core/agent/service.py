@@ -16,6 +16,7 @@ from typing import Any
 from sentinel_core.agent.prompts import system_prompt
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
+from sentinel_core.expression import TurnExpression
 from sentinel_core.llm.client import LLMClient, LLMUnavailableError
 from sentinel_core.memory.store import Store
 from sentinel_core.tts.service import SpeechService
@@ -125,12 +126,27 @@ class ChatService:
         parts: list[str] = []
         # 声がオンなら、文が閉じるたびに合成を始める(全文を待たずに話し始める)
         utter = self._speech.begin(session_id) if self._speech else None
+        # 感情タグを抜き、文ごとに表情を決める(expression.py)
+        expr = TurnExpression()
+        shown_emotion = "neutral"
+
+        async def emit(clean: str, sentences: list[tuple[str, str]]) -> None:
+            nonlocal shown_emotion
+            if clean:
+                parts.append(clean)
+                await self._hub.publish({"type": "token", "session_id": session_id, "delta": clean})
+            for text, emotion in sentences:
+                if emotion != shown_emotion:
+                    shown_emotion = emotion
+                    await self._hub.publish(
+                        {"type": "emotion", "session_id": session_id, "emotion": emotion}
+                    )
+                if utter:
+                    utter.say(text, emotion)
+
         try:
             async for delta in self._llm.stream_chat(messages, model=pack.model if pack else None):
-                parts.append(delta)
-                await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
-                if utter:
-                    utter.feed(delta)
+                await emit(*expr.feed(delta))
         except LLMUnavailableError as e:
             # オフライン応答などの案内文は通知として見せ、履歴には残さない
             await self._hub.publish({"type": "notice", "level": "warn", "text": str(e)})
@@ -140,6 +156,8 @@ class ChatService:
             )
 
         finally:
+            # 閉じずに終わった最後の文も表示・読み上げる
+            await emit(*expr.flush())
             if utter:
                 utter.finish()  # 残りの文を読み、ターンの終わり(audio_done)を知らせる
 

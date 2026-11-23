@@ -9,6 +9,7 @@
  * 本格実装ではここを openapi-typescript 生成型に置き換える(仕様 §5.1 generated/)。
  */
 
+import type { CoreEmotion } from "../features/avatar/cueChannel";
 import type { AudioChunk } from "../features/voice/voicePlayer";
 
 export type CoreInfo = { baseUrl: string; token: string };
@@ -22,6 +23,8 @@ export type StreamEvent =
   // 返答の読み上げ(仕様 §18.4)。文ごとに1つ。turn が新しくなったら前のターンの音声は捨てる
   | ({ type: "audio_chunk"; session_id: string } & AudioChunk)
   | { type: "audio_done"; session_id: string; turn: number }
+  // 文ごとの表情(アバター用)。変わったときだけ届く
+  | { type: "emotion"; session_id: string; emotion: CoreEmotion }
   | { type: "approval_required"; approval_id: string; risk: string; summary: string }; // Phase 2予約
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;

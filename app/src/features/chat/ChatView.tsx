@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AvatarDirector } from "../avatar/avatarDirector";
 import { useVoice } from "../voice/useVoice";
 import { VoicePlayer } from "../voice/voicePlayer";
 import { SettingsPanel } from "../settings/SettingsPanel";
@@ -14,8 +15,27 @@ export function ChatView() {
   const { core, coreState, ready, health, characters, active, activateCharacter } = useCore();
   // 音を鳴らす係は画面に1つだけ(再描画で作り直さない)
   const [player] = useState(() => new VoicePlayer());
-  const { msgs, send, greet, resetSession } = useChat(core, player);
+  // アバターの状態を決めてアバター窓へ送る係(これも画面に1つだけ)
+  const [director] = useState(() => new AvatarDirector());
+  const { msgs, send, greet, resetSession } = useChat(core, player, director);
   const voice = useVoice(core, active, player);
+
+  useEffect(
+    () => player.onActivity((playing) => director.audioActivity(playing)),
+    [player, director],
+  );
+  useEffect(() => () => director.dispose(), [director]);
+
+  // 繋がらないときはアバターが「困り」の顔をする
+  const connectionError =
+    coreState === "error"
+      ? "コアに接続できません。"
+      : health && !health.llm_reachable
+        ? "LLM(Ollama)に接続できません。"
+        : null;
+  useEffect(() => director.setConnectionError(connectionError), [director, connectionError]);
+  const voiceExpected = !!voice.status?.enabled && !!voice.status.available;
+  useEffect(() => director.setVoiceExpected(voiceExpected), [director, voiceExpected]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 起動したら、キャラから先に挨拶する(1回だけ。汎用モードではコアが何もしない)
@@ -63,7 +83,11 @@ export function ChatView() {
         onToggleVoice={() => voice.status && void voice.setEnabled(!voice.status.enabled)}
       />
       <MessageLog msgs={msgs} />
-      <Composer disabled={!core} onSend={(content) => void send(content)} />
+      <Composer
+        disabled={!core}
+        onSend={(content) => void send(content)}
+        onTypingChange={(typing) => director.setTyping(typing)}
+      />
       {settingsOpen && (
         <SettingsPanel
           onClose={() => setSettingsOpen(false)}

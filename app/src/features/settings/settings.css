@@ -136,3 +136,12 @@
   opacity: 0.5;
   cursor: default;
 }
+.settings__sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 16px 0 4px;
+}
+.settings__field input[type="range"] {
+  width: 100%;
+}

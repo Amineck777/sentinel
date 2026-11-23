@@ -8,6 +8,34 @@ export type ShellSettings = {
   avatarVisible: boolean;
   avatarAlwaysOnTop: boolean;
   avatarModelPath: string | null;
+  /** 体以外の透明な部分のクリックを下のアプリへ通す */
+  avatarClickThrough: boolean;
+  /** 頭の上に吹き出しを出す */
+  avatarBubble: boolean;
+  /** 話し終えてから吹き出しが消えるまでの秒数 */
+  avatarBubbleSeconds: number;
+  /** マウスカーソルを目で追う */
+  avatarFollowCursor: boolean;
+  /** 表情の強さ 0〜1 */
+  avatarEmotionStrength: number;
+  /** 何分操作が無いと居眠りするか。0 で居眠りしない */
+  avatarSleepMinutes: number;
+  /** ホットキーでチャットを開くとき、アバターの横に出す */
+  chatBesideAvatar: boolean;
+};
+
+/** Rust 側(src-tauri/src/settings.rs)の既定値と同じ。ブラウザ開発ではこれで動く */
+export const DEFAULT_SHELL_SETTINGS: ShellSettings = {
+  avatarVisible: false,
+  avatarAlwaysOnTop: true,
+  avatarModelPath: null,
+  avatarClickThrough: true,
+  avatarBubble: true,
+  avatarBubbleSeconds: 6,
+  avatarFollowCursor: true,
+  avatarEmotionStrength: 0.45,
+  avatarSleepMinutes: 10,
+  chatBesideAvatar: true,
 };
 
 export const isTauri = () => "__TAURI_INTERNALS__" in window;
@@ -32,6 +60,12 @@ export async function onSettingsChanged(cb: (s: ShellSettings) => void): Promise
 export async function readAvatarModel(): Promise<ArrayBuffer> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<ArrayBuffer>("read_avatar_model");
+}
+
+/** 実際に登録できたホットキー(Alt+Space が他のアプリに取られていれば次の候補)。無ければ null */
+export async function getHotkey(): Promise<string | null> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string | null>("get_hotkey");
 }
 
 /** .vrm を選ぶダイアログ。キャンセルなら null */

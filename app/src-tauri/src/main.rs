@@ -4,8 +4,11 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod avatar;
 mod settings;
 mod sidecar;
+
+use std::sync::Mutex;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -40,9 +43,20 @@ fn toggle_window(app: &tauri::AppHandle, label: &str) {
 }
 
 /// 既定ホットキーの候補(先頭から順に登録を試す)。
-/// Alt+Space は Windows のウィンドウメニュー、Ctrl+Space は日本語IMEの切替と衝突するため使わない。
-/// 環境変数 SENTINEL_HOTKEY で上書きできる(設定画面ができたら config.yaml の app.hotkey へ移す)。
-const HOTKEY_CANDIDATES: &[&str] = &["Ctrl+Shift+Space", "Ctrl+Alt+Space"];
+/// Alt+Space はアバター UI の設計どおりチャットパネルを開くキー。登録できている間は Windows の
+/// 「ウィンドウメニュー(Alt+Space)」より優先される。PowerToys Run などが使っていて登録できなければ、
+/// 次の候補へ。Ctrl+Space は日本語IMEの切替と衝突するため使わない。
+/// 環境変数 SENTINEL_HOTKEY で上書きできる。
+const HOTKEY_CANDIDATES: &[&str] = &["Alt+Space", "Ctrl+Shift+Space", "Ctrl+Alt+Space"];
+
+/// 実際に登録できたホットキー(設定画面に出す)
+#[derive(Default)]
+struct HotkeyState(Mutex<Option<String>>);
+
+#[tauri::command]
+fn get_hotkey(state: tauri::State<'_, HotkeyState>) -> Option<String> {
+    state.0.lock().unwrap().clone()
+}
 
 /// ホットキーを登録する。他アプリが使用中などで登録できなくてもアプリは起動を続ける
 /// (トレイから操作できるため)。
@@ -69,12 +83,13 @@ fn register_hotkey(app: &tauri::AppHandle) {
                 // 押下と離上の両方で呼ばれるので、押下だけで切り替える
                 // (両方で切り替えると、開いた直後に閉じてしまう)
                 if event.state() == ShortcutState::Pressed {
-                    toggle_main_window(&handle);
+                    avatar::toggle_chat(&handle);
                 }
             });
         match registered {
             Ok(()) => {
                 eprintln!("[hotkey] {key} を登録しました");
+                *app.state::<HotkeyState>().0.lock().unwrap() = Some(key.to_string());
                 return;
             }
             Err(e) => eprintln!("[hotkey] {key} を登録できません: {e}"),
@@ -90,11 +105,15 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(sidecar::CoreState::default())
         .manage(settings::SettingsState::default())
+        .manage(HotkeyState::default())
         .invoke_handler(tauri::generate_handler![
             sidecar::get_core_info,
             settings::get_settings,
             settings::update_settings,
             settings::read_avatar_model,
+            avatar::avatar_cursor,
+            avatar::show_chat,
+            get_hotkey,
         ])
         .setup(|app| {
             // --- sidecar起動(リリースビルドのみ。devは make core-dev に接続) ---

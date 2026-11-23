@@ -270,6 +270,8 @@ def test_reply_is_spoken_sentence_by_sentence(make_client):
     chunks = [e for e in events if e["type"] == "audio_chunk"]
     assert [ch["text"] for ch in chunks] == ["おかえりなさいませ、マスター。", "お茶をどうぞ"]
     assert [ch["seq"] for ch in chunks] == [0, 1]
+    # 文ごとの表情(アバター用)も一緒に届く。この返事には手がかりの言葉が無いのでふつう
+    assert [ch["emotion"] for ch in chunks] == ["neutral", "neutral"]
     first = chunks[0]
     assert first["format"] == "wav" and first["visemes"] == [["aa", 0.0, 0.2]]
     assert base64.b64decode(first["data_b64"])[:4] == b"RIFF"

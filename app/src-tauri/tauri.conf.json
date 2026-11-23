@@ -15,7 +15,7 @@
         "title": "SENTINEL",
         "width": 920,
         "height": 680,
-        "minWidth": 480,
+        "minWidth": 360,
         "minHeight": 360,
         "label": "main"
       },
