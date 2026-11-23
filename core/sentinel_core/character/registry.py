@@ -60,6 +60,11 @@ class CharacterRegistry:
     def active_id(self) -> str | None:
         return self._active
 
+    def active_pack(self) -> CharacterPack | None:
+        """アクティブで有効なPack。汎用モードでは None。"""
+        pack = self._packs.get(self._active) if self._active else None
+        return pack if pack and pack.valid else None
+
     def active_fragment(self) -> str | None:
         """アクティブなキャラの口調フラグメント。汎用モードでは None。"""
         pack = self._packs.get(self._active) if self._active else None

@@ -39,8 +39,12 @@ voice:
   speed: 1.0                   # 0.8〜1.2 目安
   pitch: 0.0
 
-# --- LLM(Lv3のみ) ---
+# --- LLM ---
 llm:
+  # model: "eva"               # このキャラで使うモデル名(Ollama のモデル名)。省略時は config の llm.chat_model
+  # system_prompt: "pack"      # pack  = persona/ の .md から system を作って送る(既定)
+                               # model = system を送らず、モデル自身の人格(Modelfile の SYSTEM)を使う
+                               #         (model を指定したときだけ使える)
   lora_path: null              # "lora/adapter" にするとLv3有効化(§17.4)
                                # ※有効化前にFC evalゲート(-3pt以内)を必ず通すこと
 

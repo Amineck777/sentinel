@@ -24,8 +24,10 @@ class ChatService:
         llm: LLMClient,
         characters: CharacterRegistry,
         hub: EventHub,
+        default_model: str,
     ) -> None:
         self._store = store
+        self._default_model = default_model  # 記録用(Packがモデルを指定しないときの名前)
         self._llm = llm
         self._characters = characters
         self._hub = hub
@@ -58,15 +60,26 @@ class ChatService:
         async with lock:
             await self._generate_turn(session_id)
 
+    def active_model(self) -> str:
+        """今のキャラで使うモデル名(Packの指定 > 設定の llm.chat_model)。"""
+        pack = self._characters.active_pack()
+        return (pack.model if pack else None) or self._default_model
+
     async def _generate_turn(self, session_id: str) -> None:
-        messages = [
-            {"role": "system", "content": system_prompt(self._characters.active_fragment())}
-        ]
+        pack = self._characters.active_pack()
+        messages: list[dict[str, str]] = []
+        # 人格をモデル側(Modelfile の SYSTEM)に持つPackでは system を送らない。
+        # 送ると Ollama はそちらを優先し、Modelfile の人格が消えるため
+        if not (pack and pack.use_model_system):
+            messages.append(
+                {"role": "system", "content": system_prompt(self._characters.active_fragment())}
+            )
         messages += self._store.history(session_id)
+        model = self.active_model()
 
         parts: list[str] = []
         try:
-            async for delta in self._llm.stream_chat(messages):
+            async for delta in self._llm.stream_chat(messages, model=pack.model if pack else None):
                 parts.append(delta)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
         except LLMUnavailableError as e:
@@ -82,7 +95,7 @@ class ChatService:
         full = "".join(parts)
         if not full:
             return
-        mid = self._store.add_message(session_id, "assistant", full)
+        mid = self._store.add_message(session_id, "assistant", full, model=model)
         await self._hub.publish(
             {"type": "message_done", "session_id": session_id, "message_id": mid}
         )

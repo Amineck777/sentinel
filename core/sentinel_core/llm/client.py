@@ -18,8 +18,13 @@ class LLMUnavailableError(Exception):
 
 
 class LLMClient(Protocol):
-    def stream_chat(self, messages: list[Message]) -> AsyncIterator[str]:
+    def stream_chat(
+        self, messages: list[Message], *, model: str | None = None
+    ) -> AsyncIterator[str]:
         """messages(OpenAI形式)を受け、応答テキストのデルタを順に返す。
+
+        model を渡すとこのターンだけそのモデルを使う(Character Pack がモデルを
+        指定したとき。例: Ollama の `eva`)。None なら設定の llm.chat_model。
 
         推論サーバーが使えないときは LLMUnavailableError を送出する。
         """

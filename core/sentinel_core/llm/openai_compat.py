@@ -24,40 +24,66 @@ OFFLINE_NOTICE = (
 
 
 class OpenAICompatClient:
-    def __init__(self, endpoint: str, model: str, timeout_sec: int = 120) -> None:
+    def __init__(
+        self, endpoint: str, model: str, timeout_sec: int = 120, think: bool = False
+    ) -> None:
         self._endpoint = endpoint  # 例: http://127.0.0.1:11434/v1
         self._model = model
+        # think=False のとき、思考を切る指定(reasoning_effort="none")を送る。
+        # Ollama は OpenAI 互換 API でこれを think=false として扱う。対応していない
+        # サーバーが 400 を返したら、以後は送らない(_send_reasoning_off を倒す)
+        self._send_reasoning_off = not think
         # 接続は使い回す(リクエスト毎のクライアント生成はハンドシェイクコストが無駄)
         self._client = httpx.AsyncClient(timeout=timeout_sec)
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def stream_chat(self, messages: list[Message]) -> AsyncIterator[str]:
-        url = f"{self._endpoint}/chat/completions"
-        payload: dict[str, Any] = {"model": self._model, "messages": messages, "stream": True}
+    async def stream_chat(
+        self, messages: list[Message], *, model: str | None = None
+    ) -> AsyncIterator[str]:
+        use_model = model or self._model
         try:
-            async with self._client.stream("POST", url, json=payload) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[len("data:") :].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        delta = json.loads(data)["choices"][0]["delta"].get("content")
-                    except (KeyError, IndexError, json.JSONDecodeError):
-                        continue
-                    if delta:
-                        yield delta
+            try:
+                async for delta in self._stream(messages, use_model):
+                    yield delta
+            except httpx.HTTPStatusError as e:
+                # 思考オフの指定を受け付けないサーバー(古い Ollama 等)。外して1回だけやり直す。
+                # 応答は raise_for_status で止まるので、まだ1文字も返していない
+                if e.response.status_code != 400 or not self._send_reasoning_off:
+                    raise
+                self._send_reasoning_off = False
+                async for delta in self._stream(messages, use_model):
+                    yield delta
         except httpx.TransportError as e:  # 接続不可・切断・タイムアウト → オフライン応答
             raise LLMUnavailableError(OFFLINE_NOTICE) from e
         except httpx.HTTPStatusError as e:  # 接続はできたがエラー(モデル名違い等)
             raise LLMUnavailableError(
                 f"(推論サーバーエラー: HTTP {e.response.status_code})"
-                f"モデル名 '{self._model}' が存在するか、設定の llm.chat_model を確認してください。"
+                f"モデル名 '{use_model}' が存在するか確認してください"
+                "(キャラの character.yaml の llm.model、または設定の llm.chat_model)。"
             ) from e
+
+    async def _stream(self, messages: list[Message], model: str) -> AsyncIterator[str]:
+        url = f"{self._endpoint}/chat/completions"
+        payload: dict[str, Any] = {"model": model, "messages": messages, "stream": True}
+        if self._send_reasoning_off:
+            payload["reasoning_effort"] = "none"
+        async with self._client.stream("POST", url, json=payload) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:") :].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    # 思考モデルの思考は delta.reasoning に来る。返答(content)だけを使う
+                    delta = json.loads(data)["choices"][0]["delta"].get("content")
+                except (KeyError, IndexError, json.JSONDecodeError):
+                    continue
+                if delta:
+                    yield delta
 
     async def is_reachable(self) -> bool:
         try:

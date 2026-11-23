@@ -80,12 +80,14 @@ def create_app(
         endpoint=settings.llm_endpoint,
         model=settings.chat_model,
         timeout_sec=int(settings.data["llm"].get("request_timeout_sec", 120)),
+        think=settings.llm_think,
     )
     app.state.chat = ChatService(
         store=app.state.store,
         llm=app.state.llm,
         characters=app.state.characters,
         hub=app.state.hub,
+        default_model=settings.chat_model,
     )
 
     guard = make_http_guard(token)
