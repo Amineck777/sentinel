@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { api, CoreInfo, openStream, StreamEvent } from "../../api/client";
+import type { VoicePlayer } from "../voice/voicePlayer";
 import { Msg } from "./types";
 
 /**
  * 会話状態: WSイベント(token / message_done / notice)の購読と送信。
  * 他セッション由来のイベントは session_id で除外する。
  */
-export function useChat(core: CoreInfo | null) {
+export function useChat(core: CoreInfo | null, player: VoicePlayer) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const sessionRef = useRef<string | null>(null);
 
@@ -28,6 +29,9 @@ export function useChat(core: CoreInfo | null) {
         setMsgs((prev) =>
           prev.map((m, i) => (i === prev.length - 1 ? { ...m, pending: false } : m)),
         );
+      } else if (e.type === "audio_chunk") {
+        if (sessionRef.current && e.session_id !== sessionRef.current) return;
+        player.enqueue(e);
       } else if (e.type === "notice") {
         // info はただのお知らせ(小さく中央に)。⚠ は注意が要るもの(warn/error)だけに付ける
         const msg: Msg =
@@ -37,10 +41,11 @@ export function useChat(core: CoreInfo | null) {
         setMsgs((prev) => [...prev, msg]);
       }
     });
-  }, [core]);
+  }, [core, player]);
 
   const send = async (content: string) => {
     if (!core) return;
+    player.stop(); // 話している途中でも、こちらが話しかけたら黙る
     setMsgs((prev) => [...prev, { role: "user", text: content }]);
     const r = await api<{ session_id: string }>(core, "/chat", {
       method: "POST",

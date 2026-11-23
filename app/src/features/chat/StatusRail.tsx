@@ -1,3 +1,4 @@
+import type { VoiceStatus } from "../voice/useVoice";
 import { Character, Health } from "./types";
 
 /**
@@ -11,8 +12,13 @@ export function StatusRail(props: {
   active: string;
   onSwitchCharacter: (id: string) => void;
   onOpenSettings: () => void;
+  voice: VoiceStatus | null;
+  onToggleVoice: () => void;
 }) {
   const { coreState, health, characters, active, onSwitchCharacter, onOpenSettings } = props;
+  const { voice, onToggleVoice } = props;
+  // 声: オフ=灰、オンで VOICEVOX に繋がる=水色、オンなのに繋がらない=黄
+  const voiceState = !voice?.enabled ? "connecting" : voice.available ? "linked" : "offline";
   return (
     <header className="rail">
       <span className="brand">SENTINEL</span>
@@ -22,6 +28,16 @@ export function StatusRail(props: {
       <span className={`link link--${health?.llm_reachable ? "linked" : "offline"}`}>
         <i className="dot" /> LLM {health?.llm_reachable ? "READY" : "OFFLINE"}
       </span>
+      {voice && (
+        <button
+          className={`link link--${voiceState} rail__toggle`}
+          onClick={onToggleVoice}
+          title={voice.enabled ? "声をオフにする" : "声をオンにする"}
+        >
+          <i className="dot" /> VOICE{" "}
+          {!voice.enabled ? "OFF" : voice.available ? "ON" : "NO ENGINE"}
+        </button>
+      )}
       <span className="spacer" />
       <label className="char">
         <span>character</span>

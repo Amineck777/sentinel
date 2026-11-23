@@ -13,6 +13,7 @@
 | 03 | [記憶の土台](03-memory-foundation.md) | DB の版管理、何を保存するか、設定の優先順位、配布版の自動テスト | 01 |
 | 04 | [アバターの試作](04-avatar-prototype.md) | three-vrm で VRM 表示、表情・瞬き・口パク、モデルの規約確認 | 01 |
 | 05 | [主人格をチャットにつなぐ](05-connect-main-persona.md) | Modelfile の人格を活かす、思考オフ、私的 Pack、会話をモデル名つきで残す | 01, 03 |
+| 06 | [エヴァに声を付ける](06-voice-and-lipsync.md) | TTS の差し込み口、VOICEVOX、文ごとの合成、音と口パクを窓をまたいで合わせる | 01, 04 |
 
 ## ノートの書き方(自分用ルール)
 
@@ -47,3 +48,6 @@ Claude Code では `/learn-note` で下書きを作れます(`.claude/skills/lea
 | Modelfile | Ollama のモデル定義。元のモデル(FROM)・パラメータ・人格(SYSTEM)を書く |
 | 思考(thinking) | 返答の前にモデルが内側で考える段階。賢くなるが遅い。gemma4 などが持つ |
 | ビゼム(viseme) | 口の形の単位。ここでは 5 母音(aa/ih/ou/ee/oh)と「閉じ」 |
+| TTS | Text To Speech。文字から音声を作る。ここでは VOICEVOX。`core/sentinel_core/tts/` |
+| モーラ(拍) | 日本語の音の長さの単位。「きゃ」「ん」「っ」もそれぞれ1拍。VOICEVOX は拍ごとの母音と長さを返す |
+| 音声クエリ | VOICEVOX の合成の中間データ。読み・アクセント・拍ごとの長さが入った JSON |

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import "./settings.css";
 import type { Health } from "../chat/types";
+import { VoiceSection } from "../voice/VoiceSection";
+import type { Voice } from "../voice/useVoice";
 import { isTauri, pickVrmFile, useShellSettings } from "./shellSettings";
 
 /** 右上のギアから開く設定画面。窓の右側に重ねて出す */
@@ -8,8 +10,10 @@ export function SettingsPanel(props: {
   onClose: () => void;
   coreState: "linked" | "connecting" | "error";
   health: Health | null;
+  voice: Voice;
+  characterName: string;
 }) {
-  const { onClose, coreState, health } = props;
+  const { onClose, coreState, health, voice, characterName } = props;
   const { settings, error, change } = useShellSettings();
 
   useEffect(() => {
@@ -96,6 +100,8 @@ export function SettingsPanel(props: {
           )}
           {error && <p className="settings__error">{error}</p>}
         </section>
+
+        <VoiceSection voice={voice} characterName={characterName} />
 
         <section>
           <h2>接続</h2>

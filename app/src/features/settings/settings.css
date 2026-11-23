@@ -122,3 +122,17 @@
   border: 1px solid var(--line);
   border-radius: 3px;
 }
+.settings__select,
+.settings__input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.settings__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
