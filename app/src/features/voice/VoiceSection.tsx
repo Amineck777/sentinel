@@ -46,7 +46,7 @@ export function VoiceSection(props: { voice: Voice; characterName: string }) {
                   void voice.setSpeaker(e.target.value === "" ? null : Number(e.target.value))
                 }
               >
-                <option value="">(既定: キャラ設定またはエンジンの最初の声)</option>
+                <option value="">(既定: キャラ設定、無ければ config の声 = 暁記ミタマ)</option>
                 {speakers.map((sp) => (
                   <optgroup key={sp.name} label={sp.name}>
                     {sp.styles.map((st) => (

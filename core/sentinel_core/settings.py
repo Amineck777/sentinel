@@ -40,7 +40,8 @@ DEFAULTS: dict[str, Any] = {
         "enabled": False,
         "engine": "voicevox",  # voicevox / none。将来 Style-Bert-VITS2 などを足す
         "endpoint": "http://127.0.0.1:50021",  # VOICEVOX ENGINE の待ち受け先
-        "speaker_id": None,  # 話者(スタイル)ID。None ならエンジンの最初の声
+        # 話者(スタイル)ID。122 = 暁記ミタマ(ノーマル)。None ならエンジンの最初の声
+        "speaker_id": 122,
         "speed": 1.0,
         "pitch": 0.0,
     },

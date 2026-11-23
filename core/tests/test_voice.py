@@ -301,7 +301,7 @@ def test_voice_settings_persist_and_preview(make_client):
     st = c2.get("/v1/voice", headers=H).json()
     assert st["enabled"] is True and st["speaker_id"] == 23
     st = c2.patch("/v1/voice", headers=H, json={"clear_speaker": True}).json()
-    assert st["speaker_id"] is None
+    assert st["speaker_id"] == 122  # 選択を外すと config の既定(暁記ミタマ)に戻る
 
 
 def test_preview_reports_unavailable_engine(make_client):
