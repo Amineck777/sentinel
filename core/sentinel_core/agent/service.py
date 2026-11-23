@@ -18,6 +18,7 @@ from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.llm.client import LLMClient, LLMUnavailableError
 from sentinel_core.memory.store import Store
+from sentinel_core.tts.service import SpeechService
 
 
 def _part_of_day(hour: int) -> str:
@@ -51,8 +52,10 @@ class ChatService:
         characters: CharacterRegistry,
         hub: EventHub,
         default_model: str,
+        speech: SpeechService | None = None,
     ) -> None:
         self._store = store
+        self._speech = speech  # 返答の読み上げ。None なら声なし
         self._default_model = default_model  # 記録用(Packがモデルを指定しないときの名前)
         self._llm = llm
         self._characters = characters
@@ -120,10 +123,14 @@ class ChatService:
         model = self.active_model()
 
         parts: list[str] = []
+        # 声がオンなら、文が閉じるたびに合成を始める(全文を待たずに話し始める)
+        utter = self._speech.begin(session_id) if self._speech else None
         try:
             async for delta in self._llm.stream_chat(messages, model=pack.model if pack else None):
                 parts.append(delta)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
+                if utter:
+                    utter.feed(delta)
         except LLMUnavailableError as e:
             # オフライン応答などの案内文は通知として見せ、履歴には残さない
             await self._hub.publish({"type": "notice", "level": "warn", "text": str(e)})
@@ -131,6 +138,10 @@ class ChatService:
             await self._hub.publish(
                 {"type": "notice", "level": "error", "text": f"生成エラー: {e}"}
             )
+
+        finally:
+            if utter:
+                utter.finish()  # 残りの文を読み、ターンの終わり(audio_done)を知らせる
 
         # 保存するのはモデルが実際に生成した文だけ(途中で切れた場合はそこまで)。
         # 何も生成されなかったターンは assistant 発言を作らない

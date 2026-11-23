@@ -2,8 +2,8 @@
 //
 // VRM の口の形は 5 母音(aa / ih / ou / ee / oh)の表情で表す。
 // ここでは「文字列 → 母音の列 → 時刻つきの並び(タイムライン)」に変換し、
-// 毎フレーム「いま何の口か」を引く。TTS(VOICEVOX など)を繋いだら、
-// 文字から推測する代わりに TTS が返すモーラごとの母音と長さを使う(学習ノート 04)。
+// 毎フレーム「いま何の口か」を引く。TTS(VOICEVOX など)が母音と長さを返すときは
+// fromTriples でそれをそのまま使い、返さないエンジンでは fitText で文字から推測する(学習ノート 06)。
 
 export type Vowel = "aa" | "ih" | "ou" | "ee" | "oh";
 /** null は口を閉じる(ん・っ・句読点・空白) */
@@ -94,4 +94,19 @@ export function sampleTimeline(timeline: Segment[], t: number): Record<Vowel, nu
   const p = (t - seg.start) / (seg.end - seg.start);
   w[seg.viseme] = 0.35 + 0.65 * Math.sin(Math.PI * p);
   return w;
+}
+
+/** TTS が返したタイムライン([母音, 開始秒, 終了秒] の列)を Segment にする */
+export function fromTriples(triples: [Viseme, number, number][]): Segment[] {
+  return triples.map(([viseme, start, end]) => ({ viseme, start, end }));
+}
+
+/**
+ * 母音が分からない TTS 用: 文字から口の並びを推測し、音声の長さ(秒)にちょうど収める。
+ * 漢字の読みは分からないので精度は粗いが、話し始めと終わりは音声とそろう。
+ */
+export function fitText(text: string, duration: number): Segment[] {
+  const visemes = textToVisemes(text);
+  if (visemes.length === 0 || duration <= 0) return [];
+  return buildTimeline(visemes, duration / visemes.length);
 }

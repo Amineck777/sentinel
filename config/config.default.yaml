@@ -8,5 +8,12 @@ llm:
   think: false                        # 思考モデル(gemma4 等)の思考を切る。チャットの応答を速くするため
 character:
   active: "none"
+voice:                                # 返答の読み上げ。画面の設定(右上の歯車 → 声)の方が優先
+  enabled: false
+  engine: "voicevox"                  # voicevox / none
+  endpoint: "http://127.0.0.1:50021"  # VOICEVOX(アプリかエンジン)の待ち受け先
+  speaker_id: null                    # 話者(スタイル)ID。null ならエンジンの最初の声
+  speed: 1.0
+  pitch: 0.0
 app:
   language: "ja"

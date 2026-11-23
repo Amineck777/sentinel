@@ -7,7 +7,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getSettings, onSettingsChanged, readAvatarModel } from "../settings/shellSettings";
+import { onLipsync } from "../voice/lipsyncChannel";
 import { AvatarStage, EMOTIONS, type Emotion, type ModelInfo } from "./avatarStage";
+import { fitText, fromTriples } from "./lipsync";
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
@@ -121,6 +123,21 @@ export function AvatarApp() {
       stageRef.current = null;
     };
   }, [load]);
+
+  // チャット窓が声を鳴らし始めたら、その文の口パクをする(エンジンが母音を返さなければ文字から推測)
+  useEffect(
+    () =>
+      onLipsync((msg) => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        if (msg.kind === "stop") stage.stopSpeaking();
+        else
+          stage.speakTimeline(
+            msg.visemes ? fromTriples(msg.visemes) : fitText(msg.text, msg.duration),
+          );
+      }),
+    [],
+  );
 
   useEffect(() => {
     // 背景の透明化は html/body に掛けないと効かないので、ルート要素に印を付ける

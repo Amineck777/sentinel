@@ -9,6 +9,8 @@
  * 本格実装ではここを openapi-typescript 生成型に置き換える(仕様 §5.1 generated/)。
  */
 
+import type { AudioChunk } from "../features/voice/voicePlayer";
+
 export type CoreInfo = { baseUrl: string; token: string };
 
 // WSイベント契約(仕様 §7)。`type` の追加のみ許可(前方互換)。
@@ -17,6 +19,9 @@ export type StreamEvent =
   | { type: "token"; session_id: string; delta: string }
   | { type: "message_done"; session_id: string; message_id: string }
   | { type: "notice"; level: "info" | "warn" | "error"; text: string }
+  // 返答の読み上げ(仕様 §18.4)。文ごとに1つ。turn が新しくなったら前のターンの音声は捨てる
+  | ({ type: "audio_chunk"; session_id: string } & AudioChunk)
+  | { type: "audio_done"; session_id: string; turn: number }
   | { type: "approval_required"; approval_id: string; risk: string; summary: string }; // Phase 2予約
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;

@@ -198,3 +198,16 @@ body {
 .composer button:not(:disabled):hover {
   background: rgba(76, 194, 207, 0.08);
 }
+/* レールの VOICE は押すとオン/オフが切り替わる(見た目は他の表示と同じ) */
+.rail__toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.rail__toggle:hover,
+.rail__toggle:focus-visible {
+  text-decoration: underline;
+}

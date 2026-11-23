@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sentinel_core import __version__
 from sentinel_core.agent.service import ChatService
-from sentinel_core.api.http import characters, chat, system
+from sentinel_core.api.http import characters, chat, system, voice
 from sentinel_core.api.ws import stream
 from sentinel_core.auth import TOKEN_HEADER, make_http_guard
 from sentinel_core.character.registry import CharacterRegistry
@@ -23,6 +23,9 @@ from sentinel_core.llm.client import LLMClient
 from sentinel_core.llm.openai_compat import OpenAICompatClient
 from sentinel_core.memory.store import Store
 from sentinel_core.settings import Settings
+from sentinel_core.tts.base import TTSEngine
+from sentinel_core.tts.factory import make_engine
+from sentinel_core.tts.service import SpeechService
 
 # Tauri 2 の画面のorigin。Windows/Android は http(s)://tauri.localhost、macOS/Linux は tauri://localhost
 TAURI_ORIGINS = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"]
@@ -42,10 +45,12 @@ def create_app(
     token: str,
     dev: bool = False,
     llm: LLMClient | None = None,
+    tts: TTSEngine | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
+        await app.state.speech.aclose()
         aclose = getattr(app.state.llm, "aclose", None)  # モックLLMはacloseを持たなくてよい
         if aclose:
             await aclose()
@@ -82,17 +87,27 @@ def create_app(
         timeout_sec=int(settings.data["llm"].get("request_timeout_sec", 120)),
         think=settings.llm_think,
     )
+    voice_cfg = settings.data["voice"]
+    app.state.speech = SpeechService(
+        engine=tts or make_engine(voice_cfg),
+        store=store,
+        characters=app.state.characters,
+        hub=app.state.hub,
+        defaults=voice_cfg,
+    )
     app.state.chat = ChatService(
         store=app.state.store,
         llm=app.state.llm,
         characters=app.state.characters,
         hub=app.state.hub,
         default_model=settings.chat_model,
+        speech=app.state.speech,
     )
 
     guard = make_http_guard(token)
     app.include_router(system.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(chat.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(characters.router, prefix="/v1", dependencies=[Depends(guard)])
+    app.include_router(voice.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(stream.router, prefix="/v1")  # WSはハンドラ内でトークン検証
     return app

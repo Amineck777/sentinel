@@ -16,5 +16,6 @@
 | [0110](0110-deprioritize-distribution.md) | 配布(S2〜S4)の優先度を下げ、OSS公開は 2031年と 2036年に手法のみとする | Proposed |
 | [0111](0111-original-main-persona.md) | 主人格はオリジナルとし、ユウカは私的 Pack とする | Accepted |
 | [0112](0112-new-ollama-persona.md) | Ollama で使う人格は新しく作り、ユウカ LoRA の GGUF 化は行わない | Accepted |
+| [0113](0113-pluggable-tts-voicevox-first.md) | TTS はコアの差し込み口(アダプタ)にし、まず VOICEVOX ENGINE(HTTP)で鳴らす | Accepted |
 
 Proposed はロードマップで決めた方針で、作者の確認後に Accepted に変える。

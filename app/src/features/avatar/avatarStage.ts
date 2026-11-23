@@ -135,6 +135,18 @@ export class AvatarStage {
     return timelineDuration(this.timeline);
   }
 
+  /** 時刻つきの口の並びをいまから再生する(声と一緒に。TTS が作ったタイムラインを渡す) */
+  speakTimeline(timeline: Segment[]): void {
+    this.stopAudio();
+    this.timeline = timeline;
+    this.speakStartedAt = this.elapsed;
+  }
+
+  /** 口パクを止めて口を閉じる */
+  stopSpeaking(): void {
+    this.timeline = [];
+  }
+
   /** 音声要素の音量で口を動かす(声の中身は見ずに「大きさ → 口の開き」だけ) */
   attachAudio(analyser: AnalyserNode | null): void {
     this.timeline = [];
