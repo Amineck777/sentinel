@@ -32,7 +32,8 @@ style:
 voice:
   engine: "voicevox"           # まずは既製音声(A案)で開始 → X2で "sbv2" へ差替
                                # (今は config の voice.engine のエンジンを使う。Pack ごとの切替は今後)
-  speaker_id: 1                # VOICEVOX話者ID。画面の「設定 → 声」で選んだ声があればそちらが優先
+  # speaker_id: 122            # VOICEVOX話者(スタイル)ID。書かなければ config の voice.speaker_id
+                               # (既定 122 = 暁記ミタマ)。画面の「設定 → 声」で選んだ声が最優先
   # --- engine: "sbv2" に切り替えたら以下を有効化 ---
   # model_path: "voice/model"
   # style: "Neutral"           # SBV2のスタイル名(Neutral/Happy/Angry等、学習時に定義)
