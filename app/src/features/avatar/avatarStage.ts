@@ -251,13 +251,34 @@ export class AvatarStage {
     this.renderer.dispose();
   }
 
-  /** Tポーズのままだと不自然なので、腕を下ろした休めの姿勢にする */
+  /**
+   * Tポーズのままだと不自然なので、腕を下ろした休めの姿勢にする。
+   * 回す向き(z の正負)は VRM 0.x と 1.0 で逆になることがあるので決め打ちせず、
+   * 両方試して「手が下に来る」ほうを選ぶ(学習ノート 07 のハマりどころ)
+   */
   private restPose(vrm: VRM): void {
     const h = vrm.humanoid;
-    h.getNormalizedBoneNode("leftUpperArm")?.rotation.set(0, 0, -1.2);
-    h.getNormalizedBoneNode("rightUpperArm")?.rotation.set(0, 0, 1.2);
-    h.getNormalizedBoneNode("leftLowerArm")?.rotation.set(0, 0.2, 0);
-    h.getNormalizedBoneNode("rightLowerArm")?.rotation.set(0, -0.2, 0);
+    const hand = new THREE.Vector3();
+    for (const side of ["left", "right"] as const) {
+      const upper = h.getNormalizedBoneNode(`${side}UpperArm`);
+      const handNode = h.getNormalizedBoneNode(`${side}Hand`);
+      if (!upper) continue;
+      let best = 1.2;
+      if (handNode) {
+        let lowest = Infinity;
+        for (const z of [1.2, -1.2]) {
+          upper.rotation.set(0, 0, z);
+          const y = handNode.getWorldPosition(hand).y;
+          if (y < lowest) {
+            lowest = y;
+            best = z;
+          }
+        }
+      }
+      upper.rotation.set(0, 0, best);
+      // 肘は腕と逆向きに少し曲げる
+      h.getNormalizedBoneNode(`${side}LowerArm`)?.rotation.set(0, best > 0 ? 0.2 : -0.2, 0);
+    }
   }
 
   /**
