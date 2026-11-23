@@ -110,11 +110,15 @@ export function SettingsPanel(props: {
             </dd>
             <dt>LLM</dt>
             <dd>{health?.llm_reachable ? "応答あり" : "未接続(オフライン応答)"}</dd>
+            <dt>モデル</dt>
+            <dd>{health?.chat_model ?? "-"}</dd>
             <dt>コアの版</dt>
             <dd>{health?.version ?? "-"}</dd>
           </dl>
           <p className="settings__note">
-            LLM の接続先はコアの config.yaml(llm.endpoint)で変えます。
+            LLM の接続先はコアの config.yaml(llm.endpoint)で変えます。モデルはキャラごとに
+            character.yaml の llm.model で決まり、無ければ config.yaml の llm.chat_model
+            を使います。
           </p>
         </section>
 

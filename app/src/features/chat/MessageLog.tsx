@@ -15,11 +15,17 @@ export function MessageLog({ msgs }: { msgs: Msg[] }) {
           メッセージを送るとここに会話が表示されます。LLMがOFFLINEのときはオフライン応答が返ります。
         </p>
       )}
-      {msgs.map((m, i) => (
-        <div key={i} className={`msg msg--${m.role}`}>
-          <div className="bubble">{m.text}</div>
-        </div>
-      ))}
+      {msgs.map((m, i) =>
+        m.role === "system" ? (
+          <p key={i} className="sysnote">
+            {m.text}
+          </p>
+        ) : (
+          <div key={i} className={`msg msg--${m.role}`}>
+            <div className="bubble">{m.text}</div>
+          </div>
+        ),
+      )}
       <div ref={bottomRef} />
     </main>
   );

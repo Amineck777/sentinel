@@ -16,6 +16,8 @@ export function useCore() {
   const [healthFailed, setHealthFailed] = useState(false);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [active, setActive] = useState<string>("none");
+  // キャラ一覧(と前回のキャラ)を読み終えたか。起動時の挨拶はこの後に行う
+  const [ready, setReady] = useState(false);
 
   // --- 接続確立+Character一覧 ---
   useEffect(() => {
@@ -28,6 +30,7 @@ export function useCore() {
         if (cancelled) return;
         setCharacters(cs.characters.filter((x) => x.valid));
         setActive(cs.active ?? "none");
+        setReady(true);
       })
       .catch((e) => setCoreError(String(e)));
     return () => {
@@ -69,5 +72,5 @@ export function useCore() {
 
   const coreState = coreError || healthFailed ? "error" : core ? "linked" : "connecting";
 
-  return { core, coreState, health, characters, active, activateCharacter } as const;
+  return { core, coreState, ready, health, characters, active, activateCharacter } as const;
 }

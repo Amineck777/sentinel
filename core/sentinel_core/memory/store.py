@@ -46,7 +46,13 @@ CREATE TABLE IF NOT EXISTS kv (
 );
 """
 
-MIGRATIONS: list[str] = [_V1, _V2]
+# 版3: 発言ごとに、どのモデルが生成したかを残す(assistant のみ。user は NULL)。
+# 会話を後で学習データにするとき、モデルの版を混ぜないように選り分けるため
+_V3 = """
+ALTER TABLE messages ADD COLUMN model TEXT
+"""
+
+MIGRATIONS: list[str] = [_V1, _V2, _V3]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
@@ -145,12 +151,15 @@ class Store:
             return [dict(r) for r in rows]
 
     # --- messages ---
-    def add_message(self, session_id: str, role: str, content: str) -> str:
+    def add_message(
+        self, session_id: str, role: str, content: str, model: str | None = None
+    ) -> str:
         mid = _new_id()
         with closing(self._connect()) as c, c:
             c.execute(
-                "INSERT INTO messages(id,session_id,role,content,created_at) VALUES(?,?,?,?,?)",
-                (mid, session_id, role, content, _now()),
+                "INSERT INTO messages(id,session_id,role,content,created_at,model) "
+                "VALUES(?,?,?,?,?,?)",
+                (mid, session_id, role, content, _now(), model),
             )
             c.execute("UPDATE sessions SET updated_at=? WHERE id=?", (_now(), session_id))
         return mid

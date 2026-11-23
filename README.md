@@ -23,6 +23,19 @@ make ui-dev       # ターミナル2: ブラウザで http://localhost:5173
 Character Pack は `{APP_DATA}/sentinel/characters/` にPackフォルダを置くと
 UI右上のセレクタに現れる(リポジトリ直下の `character_pack_template/` をコピーして使える)。
 
+## 主人格(Ollama のモデル)と話す
+
+人格を Ollama の Modelfile に持つモデル(例: `eva`)は、Pack の `character.yaml` に
+`llm.model: eva` と `llm.system_prompt: model` を書くとチャットで選べる。
+SENTINEL は system を送らないので、Modelfile の人格がそのまま使われる。思考は切ってある(`llm.think: false`)。
+私的な Pack はリポジトリの外に置き、次でコアが読む場所へ入れる(リポジトリ直下で):
+
+```powershell
+core\.venv\Scripts\python.exe scripts\install_pack.py <Packフォルダ>
+```
+
+会話は `sentinel.db` の messages に、返答を作ったモデル名と一緒に残る。詳しくは `docs/learning/05-connect-main-persona.md`。
+
 ## デスクトップアプリとして確認・配布(S2)
 
 ```bash

@@ -30,6 +30,9 @@ DEFAULTS: dict[str, Any] = {
         "endpoint": "http://127.0.0.1:11434/v1",
         "chat_model": "qwen2.5:7b-instruct",  # 実名は設定で差替可・仕様はクラスのみ規定
         "request_timeout_sec": 120,
+        # 考える(thinking)モデルの思考を使うか。チャットでは切る(gemma4 などは
+        # 思考すると返答が数十秒遅れるため)。推論サーバーが対応していなければ無視される
+        "think": False,
     },
     "character": {"active": "none"},
     "app": {"language": "ja"},
@@ -71,6 +74,10 @@ class Settings:
     @property
     def chat_model(self) -> str:
         return str(self.data["llm"]["chat_model"])
+
+    @property
+    def llm_think(self) -> bool:
+        return bool(self.data["llm"].get("think", False))
 
     @property
     def db_path(self) -> Path:

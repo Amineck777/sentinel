@@ -9,12 +9,38 @@ POST /v1/chat から呼ばれ、即座に (session_id, message_id) を返し、
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
+from datetime import datetime
+from typing import Any
 
 from sentinel_core.agent.prompts import system_prompt
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.llm.client import LLMClient, LLMUnavailableError
 from sentinel_core.memory.store import Store
+
+
+def _part_of_day(hour: int) -> str:
+    if 5 <= hour < 11:
+        return "朝"
+    if 11 <= hour < 17:
+        return "昼"
+    if 17 <= hour < 23:
+        return "夜"
+    return "深夜"
+
+
+def greeting_cue(now: datetime | None = None) -> str:
+    """起動時の挨拶を促す合図。LLMには user として渡すが、会話履歴には保存しない。
+
+    コアは利用者のPC上で動くので、ローカル時刻 = 利用者の時刻。時間帯に合った挨拶にするため渡す。
+    """
+    now = now or datetime.now()
+    return (
+        f"(マスターがアプリを起動しました。今は{now.hour}時{now.minute:02d}分、"
+        f"{_part_of_day(now.hour)}です。あなたから先に、短く挨拶してください。"
+        "この括弧の文そのものには触れないでください)"
+    )
 
 
 class ChatService:
@@ -24,8 +50,10 @@ class ChatService:
         llm: LLMClient,
         characters: CharacterRegistry,
         hub: EventHub,
+        default_model: str,
     ) -> None:
         self._store = store
+        self._default_model = default_model  # 記録用(Packがモデルを指定しないときの名前)
         self._llm = llm
         self._characters = characters
         self._hub = hub
@@ -47,26 +75,53 @@ class ChatService:
             self._characters.activate(character_id)
         sid = self._store.ensure_session(session_id, self._characters.active_id)
         mid = self._store.add_message(sid, "user", content)
-
-        task = asyncio.get_running_loop().create_task(self._generate(sid))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
+        self._spawn(self._generate(sid))
         return sid, mid
 
-    async def _generate(self, session_id: str) -> None:
+    def start_greeting(self, session_id: str | None = None) -> str | None:
+        """キャラから先に挨拶するターンを始める(起動時・キャラ切替時)。
+
+        汎用モードでは挨拶しない(None を返す)。合図の文は保存せず、挨拶だけを
+        assistant の発言として残す(次のターンからはその挨拶が履歴の先頭になる)。
+        """
+        if self._characters.active_pack() is None:
+            return None
+        sid = self._store.ensure_session(session_id, self._characters.active_id)
+        self._spawn(self._generate(sid, cue=greeting_cue()))
+        return sid
+
+    def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
+        task = asyncio.get_running_loop().create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _generate(self, session_id: str, cue: str | None = None) -> None:
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
-            await self._generate_turn(session_id)
+            await self._generate_turn(session_id, cue)
 
-    async def _generate_turn(self, session_id: str) -> None:
-        messages = [
-            {"role": "system", "content": system_prompt(self._characters.active_fragment())}
-        ]
+    def active_model(self) -> str:
+        """今のキャラで使うモデル名(Packの指定 > 設定の llm.chat_model)。"""
+        pack = self._characters.active_pack()
+        return (pack.model if pack else None) or self._default_model
+
+    async def _generate_turn(self, session_id: str, cue: str | None = None) -> None:
+        pack = self._characters.active_pack()
+        messages: list[dict[str, str]] = []
+        # 人格をモデル側(Modelfile の SYSTEM)に持つPackでは system を送らない。
+        # 送ると Ollama はそちらを優先し、Modelfile の人格が消えるため
+        if not (pack and pack.use_model_system):
+            messages.append(
+                {"role": "system", "content": system_prompt(self._characters.active_fragment())}
+            )
         messages += self._store.history(session_id)
+        if cue:  # 保存しない合図(挨拶など)。履歴の最後に user として足す
+            messages.append({"role": "user", "content": cue})
+        model = self.active_model()
 
         parts: list[str] = []
         try:
-            async for delta in self._llm.stream_chat(messages):
+            async for delta in self._llm.stream_chat(messages, model=pack.model if pack else None):
                 parts.append(delta)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": delta})
         except LLMUnavailableError as e:
@@ -82,7 +137,7 @@ class ChatService:
         full = "".join(parts)
         if not full:
             return
-        mid = self._store.add_message(session_id, "assistant", full)
+        mid = self._store.add_message(session_id, "assistant", full, model=model)
         await self._hub.publish(
             {"type": "message_done", "session_id": session_id, "message_id": mid}
         )

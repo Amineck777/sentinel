@@ -17,7 +17,7 @@ H = {"X-Sentinel-Token": TOKEN}
 
 
 class OfflineLLM:
-    async def stream_chat(self, messages) -> AsyncIterator[str]:
+    async def stream_chat(self, messages, *, model=None) -> AsyncIterator[str]:
         await asyncio.sleep(0)
         raise LLMUnavailableError("(オフライン応答)テスト")
         yield ""  # pragma: no cover  (async generator にするため)
@@ -29,7 +29,7 @@ class OfflineLLM:
 class CutOffLLM:
     """途中まで生成してから切断される。"""
 
-    async def stream_chat(self, messages) -> AsyncIterator[str]:
+    async def stream_chat(self, messages, *, model=None) -> AsyncIterator[str]:
         yield "途中まで"
         raise LLMUnavailableError("(オフライン応答)切断")
 
@@ -38,7 +38,7 @@ class CutOffLLM:
 
 
 class EchoLLM:
-    async def stream_chat(self, messages) -> AsyncIterator[str]:
+    async def stream_chat(self, messages, *, model=None) -> AsyncIterator[str]:
         yield "ok"
 
     async def is_reachable(self) -> bool:

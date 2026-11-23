@@ -19,9 +19,9 @@ H = {"X-Sentinel-Token": TOKEN}
 class FakeLLM:
     """決定的なモック(実LLM不使用でエージェント側を検証する規約)。"""
 
-    async def stream_chat(self, messages) -> AsyncIterator[str]:
+    async def stream_chat(self, messages, *, model=None) -> AsyncIterator[str]:
         # システムプロンプトの内容を応答に混ぜて、キャラ合成の検証に使う
-        sys_prompt = messages[0]["content"]
+        sys_prompt = messages[0]["content"] if messages[0]["role"] == "system" else ""
         tag = "CHAR" if "キャラクター人格" in sys_prompt else "BASE"
         for chunk in [f"[{tag}]", "こんにちは"]:
             await asyncio.sleep(0.005)  # 制御を手放し、生成の並行実行(交錯)を再現可能にする

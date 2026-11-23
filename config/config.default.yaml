@@ -5,6 +5,7 @@ llm:
   endpoint: "http://127.0.0.1:11434/v1"
   chat_model: "qwen2.5:7b-instruct"   # 例。Phase 0の計測結果で差し替える
   request_timeout_sec: 120
+  think: false                        # 思考モデル(gemma4 等)の思考を切る。チャットの応答を速くするため
 character:
   active: "none"
 app:

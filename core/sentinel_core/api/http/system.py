@@ -17,4 +17,5 @@ async def health(request: Request) -> dict[str, Any]:
         "version": __version__,
         "llm_reachable": llm_ok,
         "active_character": request.app.state.characters.active_id,
+        "chat_model": request.app.state.chat.active_model(),
     }

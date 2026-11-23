@@ -126,6 +126,13 @@ body {
   text-align: center;
   margin-top: 15vh;
 }
+/* キャラ切替などのお知らせ。発言ではないので吹き出しにしない */
+.sysnote {
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  margin: 8px 0;
+}
 .msg {
   display: flex;
   margin: 10px 0;
