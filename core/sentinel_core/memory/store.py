@@ -9,12 +9,16 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 import uuid
 from contextlib import closing
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from sentinel_core.memory.budget import estimate_message_tokens
 
 # 版1: Phase 1 のスキーマ。導入前のDB(user_version=0)にも IF NOT EXISTS で安全に適用できる
 _V1 = """
@@ -52,7 +56,38 @@ _V3 = """
 ALTER TABLE messages ADD COLUMN model TEXT
 """
 
-MIGRATIONS: list[str] = [_V1, _V2, _V3]
+# 版4: 記憶 v1 の土台(ADR 0116)。
+# - 発言ごとに、どのキャラとの会話かを残す(出来事をキャラ別に思い出すため)。
+#   既存の発言は、そのセッションのキャラで埋める
+# - セッションを「キャラごとの最新」で引くための索引(再起動後に会話を続けるため)
+# - turn_logs: 返答1回ごとの自己観測ログ(E.V.A. 仕様 v0.2 §4.1)。
+#   どのモデル・人格の版で、何を思い出し、何秒かかったかを残し、後から評価に使う
+_V4 = """
+ALTER TABLE messages ADD COLUMN character_id TEXT;
+UPDATE messages SET character_id =
+  (SELECT s.character_id FROM sessions s WHERE s.id = messages.session_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_character ON sessions(character_id, updated_at);
+CREATE TABLE IF NOT EXISTS turn_logs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  message_id TEXT,
+  character_id TEXT,
+  model TEXT,
+  persona_hash TEXT,
+  prompt_version TEXT,
+  recalled_ids TEXT NOT NULL DEFAULT '[]',
+  started_at TEXT NOT NULL,
+  first_token_ms INTEGER,
+  total_ms INTEGER,
+  prompt_tokens_est INTEGER,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_turn_logs_session ON turn_logs(session_id, started_at)
+"""
+
+MIGRATIONS: list[str] = [_V1, _V2, _V3, _V4]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
@@ -63,6 +98,11 @@ class SchemaTooNewError(RuntimeError):
 def _statements(script: str) -> list[str]:
     # 移行SQLは単純なDDLだけを書く(トリガー等の ; を含む文は使わない)前提で分割する
     return [stmt.strip() for stmt in script.split(";") if stmt.strip()]
+
+
+def now_iso() -> str:
+    """今の時刻(UTC・ISO 8601・秒精度)。DB に入れる時刻はすべてこの形。"""
+    return _now()
 
 
 def _now() -> str:
@@ -141,6 +181,36 @@ class Store:
             )
             return sid
 
+    def session_owner(self, session_id: str) -> tuple[bool, str | None]:
+        """(セッションがあるか, そのセッションのキャラID)。汎用モードのキャラIDは None。"""
+        with closing(self._connect()) as c:
+            row = c.execute(
+                "SELECT character_id FROM sessions WHERE id=?", (session_id,)
+            ).fetchone()
+        return (False, None) if row is None else (True, row["character_id"])
+
+    def resumable_session(self, character_id: str | None, within_hours: float) -> str | None:
+        """そのキャラの最新セッションが within_hours 時間以内に話したものなら、その ID。
+
+        アプリを再起動しても、少し前の会話の続きとして扱うため(ADR 0116 の短期記憶)。
+        汎用モード(character_id=None)も「汎用モード同士」で続ける。
+        """
+        if within_hours <= 0:
+            return None  # 0 以下なら続けない(毎回新しいセッション)
+        with closing(self._connect()) as c:
+            # `IS ?` は NULL 同士も一致とみなす(`= ?` だと汎用モードが一致しない)
+            row = c.execute(
+                "SELECT id, updated_at FROM sessions WHERE archived=0 AND character_id IS ? "
+                "ORDER BY updated_at DESC, rowid DESC LIMIT 1",
+                (character_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        updated = datetime.strptime(row["updated_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        if datetime.now(UTC) - updated > timedelta(hours=within_hours):
+            return None
+        return str(row["id"])
+
     def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
         with closing(self._connect()) as c:
             rows = c.execute(
@@ -152,14 +222,20 @@ class Store:
 
     # --- messages ---
     def add_message(
-        self, session_id: str, role: str, content: str, model: str | None = None
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        model: str | None = None,
+        character_id: str | None = None,
     ) -> str:
+        """発言を1件追記する。character_id は「どのキャラとの会話か」(汎用モードは None)。"""
         mid = _new_id()
         with closing(self._connect()) as c, c:
             c.execute(
-                "INSERT INTO messages(id,session_id,role,content,created_at,model) "
-                "VALUES(?,?,?,?,?,?)",
-                (mid, session_id, role, content, _now(), model),
+                "INSERT INTO messages(id,session_id,role,content,created_at,model,character_id) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (mid, session_id, role, content, _now(), model, character_id),
             )
             c.execute("UPDATE sessions SET updated_at=? WHERE id=?", (_now(), session_id))
         return mid
@@ -177,6 +253,88 @@ class Store:
                 (session_id, limit),
             ).fetchall()
         return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+    def recent_history(
+        self, session_id: str, max_tokens: int, max_messages: int = 200
+    ) -> list[dict[str, str]]:
+        """短期記憶: 新しい発言から順に、合計が max_tokens に収まるところまで(OpenAI形式)。
+
+        発言数ではなくトークン数で切るのは、長い発言が続いても文脈(num_ctx)から
+        あふれないようにするため。最新の1発言だけは、長すぎても必ず入れる
+        (入れないと、今話しかけられた内容が LLM に届かない)。
+        max_messages は、DB から読む件数の上限(極端に短い発言が大量にある場合の歯止め)。
+        """
+        with closing(self._connect()) as c:
+            rows = c.execute(
+                "SELECT role, content FROM messages "
+                "WHERE session_id=? AND role IN ('user','assistant') "
+                "ORDER BY rowid DESC LIMIT ?",
+                (session_id, max_messages),
+            ).fetchall()
+        picked: list[dict[str, str]] = []
+        used = 0
+        for r in rows:  # 新しい順に見ていく
+            cost = estimate_message_tokens(r["content"])
+            if picked and used + cost > max_tokens:
+                break
+            picked.append({"role": r["role"], "content": r["content"]})
+            used += cost
+        return list(reversed(picked))  # LLM には古い順で渡す
+
+    # --- turn_logs(自己観測ログ) ---
+    def add_turn_log(
+        self,
+        *,
+        session_id: str,
+        message_id: str | None,
+        character_id: str | None,
+        model: str | None,
+        persona_hash: str | None,
+        prompt_version: str,
+        recalled_ids: list[str],
+        started_at: str,
+        first_token_ms: int | None,
+        total_ms: int,
+        prompt_tokens_est: int,
+        prompt_tokens: int | None,
+        completion_tokens: int | None,
+        error: str | None,
+    ) -> str:
+        """返答1回分の観測を記録する(項目の意味は版4の turn_logs を参照)。"""
+        lid = _new_id()
+        with closing(self._connect()) as c, c:
+            c.execute(
+                "INSERT INTO turn_logs(id,session_id,message_id,character_id,model,persona_hash,"
+                "prompt_version,recalled_ids,started_at,first_token_ms,total_ms,"
+                "prompt_tokens_est,prompt_tokens,completion_tokens,error) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    lid,
+                    session_id,
+                    message_id,
+                    character_id,
+                    model,
+                    persona_hash,
+                    prompt_version,
+                    json.dumps(recalled_ids),
+                    started_at,
+                    first_token_ms,
+                    total_ms,
+                    prompt_tokens_est,
+                    prompt_tokens,
+                    completion_tokens,
+                    error,
+                ),
+            )
+        return lid
+
+    def turn_logs(self, session_id: str) -> list[dict[str, Any]]:
+        """セッションの観測ログ(古い順)。評価や確認用。"""
+        with closing(self._connect()) as c:
+            rows = c.execute(
+                "SELECT * FROM turn_logs WHERE session_id=? ORDER BY rowid", (session_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # --- kv(アプリの状態) ---
     def get_state(self, key: str) -> str | None:

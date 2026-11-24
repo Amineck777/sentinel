@@ -50,6 +50,14 @@ DEFAULTS: dict[str, Any] = {
         # cpu_threads は合成に使う CPU の数。0 なら CORE に任せる
         "core": {"dir": None, "cpu_threads": 0},
     },
+    # 会話の記憶(ADR 0116)
+    "memory": {
+        # 短期記憶(直近の会話をそのまま渡す分)のトークン数の上限。数え方は memory/budget.py
+        "short_term_tokens": 2500,
+        # 同じキャラと最後に話してからこの時間以内なら、再起動しても同じ会話の続きにする。
+        # 0 なら続けない(起動ごとに新しい会話)
+        "session_resume_hours": 6,
+    },
     "app": {"language": "ja"},
 }
 

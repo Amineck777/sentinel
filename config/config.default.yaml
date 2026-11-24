@@ -18,5 +18,8 @@ voice:                                # 返答の読み上げ。画面の設定(
   core:                               # 同梱の VOICEVOX CORE(scripts/setup_voicevox_core.py で入れる)
     dir: null                         # null なら {APP_DATA}/sentinel/voicevox_core
     cpu_threads: 0                    # 合成に使う CPU の数。0 なら CORE に任せる
+memory:                               # 会話の記憶(docs/adr/0116)
+  short_term_tokens: 2500             # 直近の会話をそのまま渡す分の上限(トークンは多めに見積もる)
+  session_resume_hours: 6             # 最後に話してからこの時間以内なら、再起動しても会話の続きにする。0 で続けない
 app:
   language: "ja"

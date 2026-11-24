@@ -19,5 +19,6 @@
 | [0113](0113-pluggable-tts-voicevox-first.md) | TTS はコアの差し込み口(アダプタ)にし、まず VOICEVOX ENGINE(HTTP)で鳴らす | Accepted |
 | [0114](0114-avatar-desktop-ui.md) | アバターは透明な別窓に常駐させ、状態はチャット窓が決めて送る | Accepted |
 | [0115](0115-bundle-voicevox-core.md) | VOICEVOX CORE をコアに同梱し、アプリ無しで声を出す(ENGINE は選択肢として残す) | Accepted |
+| [0116](0116-conversation-memory-v1.md) | 会話の記憶 v1:原文から「出来事」と「マスターの事実」を会話の区切りで作り、固定枠＋ハイブリッド検索で思い出す | Accepted |
 
 Proposed はロードマップで決めた方針で、作者の確認後に Accepted に変える。

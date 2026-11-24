@@ -33,6 +33,12 @@ class OpenAICompatClient:
         # Ollama は OpenAI 互換 API でこれを think=false として扱う。対応していない
         # サーバーが 400 を返したら、以後は送らない(_send_reasoning_off を倒す)
         self._send_reasoning_off = not think
+        # 返答の最後にトークン数(usage)を返してもらう指定。自己観測ログ用(ADR 0116)。
+        # 受け付けないサーバーでは、思考オフの指定と一緒に外してやり直す
+        self._send_usage = True
+        # 直前の stream_chat で受け取ったトークン数({"prompt_tokens", "completion_tokens"})。
+        # サーバーが返さなければ None。生成はセッションごとに直列なので、呼んだ直後に読めばよい
+        self.last_usage: dict[str, int] | None = None
         # 接続は使い回す(リクエスト毎のクライアント生成はハンドシェイクコストが無駄)
         self._client = httpx.AsyncClient(timeout=timeout_sec)
 
@@ -43,16 +49,21 @@ class OpenAICompatClient:
         self, messages: list[Message], *, model: str | None = None
     ) -> AsyncIterator[str]:
         use_model = model or self._model
+        self.last_usage = None  # 前のターンの値を残さない
         try:
             try:
                 async for delta in self._stream(messages, use_model):
                     yield delta
             except httpx.HTTPStatusError as e:
-                # 思考オフの指定を受け付けないサーバー(古い Ollama 等)。外して1回だけやり直す。
+                # 思考オフや usage の指定を受け付けないサーバー(古い Ollama 等)。
+                # どちらが原因かは分からないので両方外して1回だけやり直す。
                 # 応答は raise_for_status で止まるので、まだ1文字も返していない
-                if e.response.status_code != 400 or not self._send_reasoning_off:
+                if e.response.status_code != 400 or not (
+                    self._send_reasoning_off or self._send_usage
+                ):
                     raise
                 self._send_reasoning_off = False
+                self._send_usage = False
                 async for delta in self._stream(messages, use_model):
                     yield delta
         except httpx.TransportError as e:  # 接続不可・切断・タイムアウト → オフライン応答
@@ -69,6 +80,8 @@ class OpenAICompatClient:
         payload: dict[str, Any] = {"model": model, "messages": messages, "stream": True}
         if self._send_reasoning_off:
             payload["reasoning_effort"] = "none"
+        if self._send_usage:
+            payload["stream_options"] = {"include_usage": True}
         async with self._client.stream("POST", url, json=payload) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
@@ -78,9 +91,20 @@ class OpenAICompatClient:
                 if data == "[DONE]":
                     break
                 try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                # usage は最後のチャンク(choices が空)に来る
+                usage = chunk.get("usage") if isinstance(chunk, dict) else None
+                if isinstance(usage, dict):
+                    self.last_usage = {
+                        "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+                        "completion_tokens": int(usage.get("completion_tokens") or 0),
+                    }
+                try:
                     # 思考モデルの思考は delta.reasoning に来る。返答(content)だけを使う
-                    delta = json.loads(data)["choices"][0]["delta"].get("content")
-                except (KeyError, IndexError, json.JSONDecodeError):
+                    delta = chunk["choices"][0]["delta"].get("content")
+                except (KeyError, IndexError, TypeError):
                     continue
                 if delta:
                     yield delta
