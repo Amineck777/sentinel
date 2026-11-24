@@ -109,6 +109,40 @@ class OpenAICompatClient:
                 if delta:
                     yield delta
 
+    async def complete_json(self, messages: list[Message], *, model: str | None = None) -> str:
+        """ストリームせずに1回で答えを受け取り、本文(JSON のはず)を返す。記憶づくり用。
+
+        response_format=json_object で「JSON だけを返す」ように頼む(Ollama は対応している)。
+        受け付けないサーバーが 400 を返したら、その指定を外して1回だけやり直す
+        (外しても指示文で JSON を頼んでいるので、多くは読める形で返ってくる)。
+        """
+        use_model = model or self._model
+        url = f"{self._endpoint}/chat/completions"
+        payload: dict[str, Any] = {
+            "model": use_model,
+            "messages": messages,
+            "stream": False,
+            "response_format": {"type": "json_object"},
+        }
+        if self._send_reasoning_off:
+            payload["reasoning_effort"] = "none"
+        try:
+            resp = await self._client.post(url, json=payload)
+            if resp.status_code == 400:
+                payload.pop("response_format", None)
+                payload.pop("reasoning_effort", None)
+                resp = await self._client.post(url, json=payload)
+            resp.raise_for_status()
+            return str(resp.json()["choices"][0]["message"]["content"] or "")
+        except httpx.TransportError as e:
+            raise LLMUnavailableError(OFFLINE_NOTICE) from e
+        except httpx.HTTPStatusError as e:
+            raise LLMUnavailableError(
+                f"(推論サーバーエラー: HTTP {e.response.status_code})記憶づくりに失敗しました"
+            ) from e
+        except (KeyError, IndexError, TypeError, ValueError) as e:  # 応答の形が想定外
+            raise LLMUnavailableError(f"推論サーバーの応答を読めませんでした: {e}") from e
+
     async def is_reachable(self) -> bool:
         try:
             r = await self._client.get(f"{self._endpoint}/models", timeout=3)

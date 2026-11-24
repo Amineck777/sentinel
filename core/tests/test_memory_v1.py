@@ -129,7 +129,9 @@ def test_restart_continues_recent_session(tmp_path: Path):
     with TestClient(_app(Settings.load(data_dir=tmp_path), llm)) as c:
         sid2 = _turn(c, "さっき何を作ったっけ")
     assert sid1 == sid2
-    contents = [m["content"] for m in llm.calls[-1]]
+    # 終了時には記憶づくりも LLM を呼ぶので、チャットの呼び出し(最後が今の発言)を探す
+    chat = next(c for c in llm.calls if c[-1]["content"] == "さっき何を作ったっけ")
+    contents = [m["content"] for m in chat]
     assert "今日はカレーを作った" in contents  # 再起動前の発言が短期記憶に入っている
 
 
@@ -293,8 +295,8 @@ def test_v4_fills_character_id_of_existing_messages(tmp_path: Path, monkeypatch)
         )
     monkeypatch.undo()
 
-    store = Store(db)  # 版4を当てる
-    assert store.schema_version == 4
+    store = Store(db)  # 版4(と、それ以降)を当てる
+    assert store.schema_version == store_mod.SCHEMA_VERSION  # 版4以降をすべて当てる
     with closing(sqlite3.connect(db)) as c:
         row = c.execute("SELECT character_id FROM messages WHERE id='m1'").fetchone()
     assert row == ("eva",)

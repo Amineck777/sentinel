@@ -21,5 +21,9 @@ voice:                                # 返答の読み上げ。画面の設定(
 memory:                               # 会話の記憶(docs/adr/0116)
   short_term_tokens: 2500             # 直近の会話をそのまま渡す分の上限(トークンは多めに見積もる)
   session_resume_hours: 6             # 最後に話してからこの時間以内なら、再起動しても会話の続きにする。0 で続けない
+  extract_idle_minutes: 15            # 最後の返答からこの分数だけ話さなければ、出来事と事実を作る
+  extract_startup_delay_sec: 30       # 起動してこの秒数のあとに、前回の積み残しを処理する。負の数で処理しない
+  extract_on_exit_timeout_sec: 20     # 終了時に記憶づくりを待つ最長の秒数。0 で処理しない
+  extract_chunk_tokens: 2500          # 1回の記憶づくりで読ませる会話の量。長い会話はこの大きさで区切る
 app:
   language: "ja"
