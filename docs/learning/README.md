@@ -15,6 +15,7 @@
 | 05 | [主人格をチャットにつなぐ](05-connect-main-persona.md) | Modelfile の人格を活かす、思考オフ、私的 Pack、会話をモデル名つきで残す | 01, 03 |
 | 06 | [エヴァに声を付ける](06-voice-and-lipsync.md) | TTS の差し込み口、VOICEVOX、文ごとの合成、音と口パクを窓をまたいで合わせる | 01, 04 |
 | 07 | [アバターをデスクトップに住まわせる](07-avatar-desktop-ui.md) | クリック透過、状態の決め方、仕草の重ね方、感情タグと表情、吹き出し、Alt+Space | 04, 06 |
+| 08 | [VOICEVOX をアプリに同梱する](08-bundle-voicevox-core.md) | ENGINE と CORE のちがい、遅延初期化、.vvm を開く/読み込む、規約の同意、git に入れないもの | 06 |
 
 ## ノートの書き方(自分用ルール)
 
@@ -52,6 +53,9 @@ Claude Code では `/learn-note` で下書きを作れます(`.claude/skills/lea
 | TTS | Text To Speech。文字から音声を作る。ここでは VOICEVOX。`core/sentinel_core/tts/` |
 | モーラ(拍) | 日本語の音の長さの単位。「きゃ」「ん」「っ」もそれぞれ1拍。VOICEVOX は拍ごとの母音と長さを返す |
 | 音声クエリ | VOICEVOX の合成の中間データ。読み・アクセント・拍ごとの長さが入った JSON |
+| VOICEVOX CORE | VOICEVOX の合成ライブラリ本体。ENGINE(アプリ)の中身。`tts/voicevox_core_engine.py` から直接呼ぶ |
+| .vvm | VOICEVOX の音声モデルのファイル。1つに数人分の声(スタイル)が入る。暁記ミタマは 24.vvm |
+| 遅延初期化 | 重い準備を起動時ではなく、初めて使うときに行うこと |
 | クリック透過 | 窓の上でもクリックが下の窓へ通ること。Tauri では `setIgnoreCursorEvents` |
 | 感情タグ | 返事に混ぜる `[joy]` のような印。表情を決めるのに使い、画面と声からは取り除く |
 | ポーリング | 相手から知らせが来ない情報を、一定間隔でこちらから聞きに行くこと |

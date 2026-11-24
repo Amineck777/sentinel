@@ -38,12 +38,17 @@ DEFAULTS: dict[str, Any] = {
     # 返答の読み上げ(仕様 §18)。オン/オフと声は画面の設定からも変えられ、そちらが優先
     "voice": {
         "enabled": False,
-        "engine": "voicevox",  # voicevox / none。将来 Style-Bert-VITS2 などを足す
-        "endpoint": "http://127.0.0.1:50021",  # VOICEVOX ENGINE の待ち受け先
+        # auto / voicevox_core / voicevox / none(意味は tts/factory.py)。
+        # auto は「同梱の VOICEVOX CORE が入っていればそれ、無ければ VOICEVOX アプリ(HTTP)」
+        "engine": "auto",
+        "endpoint": "http://127.0.0.1:50021",  # VOICEVOX ENGINE(アプリ)の待ち受け先
         # 話者(スタイル)ID。122 = 暁記ミタマ(ノーマル)。None ならエンジンの最初の声
         "speaker_id": 122,
         "speed": 1.0,
         "pitch": 0.0,
+        # 同梱の VOICEVOX CORE(ADR 0115)。dir が None なら {APP_DATA}/sentinel/voicevox_core
+        # cpu_threads は合成に使う CPU の数。0 なら CORE に任せる
+        "core": {"dir": None, "cpu_threads": 0},
     },
     "app": {"language": "ja"},
 }

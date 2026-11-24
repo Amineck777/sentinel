@@ -43,3 +43,8 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 files = ["sentinel_core"]
+
+# voicevox_core は任意(scripts/setup_voicevox_core.py で入れる)。CI には無いので型を探さない
+[[tool.mypy.overrides]]
+module = ["voicevox_core", "voicevox_core.*"]
+ignore_missing_imports = true

@@ -39,4 +39,12 @@ Thumbs.db
 # --- アバターモデル(配布規約で再配布禁止のものがあるため、リポジトリに入れない。ADR 0109)---
 *.vrm
 *.vroid
+
+# --- VOICEVOX CORE(scripts/setup_voicevox_core.py が利用者の PC に取ってくる。ADR 0115)---
+# 音声モデル・推論ランタイム・辞書・wheel はリポジトリに入れない(規約と容量のため)
+*.vvm
+*.onnx
+*.whl
+voicevox_core/
+open_jtalk_dic_utf_8-*/
 app/.env.local

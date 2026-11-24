@@ -28,3 +28,4 @@ GPU は RTX 4060 Ti 8GB で Gemma 4 E4B が使うので、TTS は CPU で動く�
 - 音声モデル・辞書はリポジトリにも配布物にも入らない(VOICEVOX 側が持つ)
 - 声ごとに利用規約とクレジット表記(`VOICEVOX:キャラ名`)が違う。設定画面にクレジットを出し、公開前に規約を確認する運用にする
 - Style-Bert-VITS2 などへの切り替えは `tts/` にエンジンを1つ足し、`factory.py` に1行足す作業になる
+- 追記(2026-11-24): CORE 同梱は ADR 0115 で行った。ENGINE(HTTP)は `voice.engine: voicevox` で引き続き使える

@@ -17,7 +17,7 @@ export function StatusRail(props: {
 }) {
   const { coreState, health, characters, active, onSwitchCharacter, onOpenSettings } = props;
   const { voice, onToggleVoice } = props;
-  // 声: オフ=灰、オンで VOICEVOX に繋がる=水色、オンなのに繋がらない=黄
+  // 声: オフ=灰、オンで VOICEVOX(同梱 CORE かアプリ)が使える=水色、オンなのに使えない=黄
   const voiceState = !voice?.enabled ? "connecting" : voice.available ? "linked" : "offline";
   return (
     <header className="rail">
