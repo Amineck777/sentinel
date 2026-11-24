@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "avatar",
-  "description": "アバター窓(ADR 0109)。枠なし窓を掴んで動かすため start-dragging だけ足す。コアへの接続権限は持たせない",
+  "description": "アバター窓(ADR 0109/0114)。枠なし窓を掴んで動かす start-dragging と、透明な部分のクリックを下のアプリへ通す set-ignore-cursor-events だけ足す。コアへの接続権限は持たせない",
   "windows": [
     "avatar"
   ],
   "permissions": [
     "core:default",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-ignore-cursor-events"
   ]
 }

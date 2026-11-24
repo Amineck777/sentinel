@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "./settings.css";
 import type { Health } from "../chat/types";
 import { VoiceSection } from "../voice/VoiceSection";
 import type { Voice } from "../voice/useVoice";
-import { isTauri, pickVrmFile, useShellSettings } from "./shellSettings";
+import { getHotkey, isTauri, pickVrmFile, useShellSettings } from "./shellSettings";
 
 /** 右上のギアから開く設定画面。窓の右側に重ねて出す */
 export function SettingsPanel(props: {
@@ -15,6 +15,10 @@ export function SettingsPanel(props: {
 }) {
   const { onClose, coreState, health, voice, characterName } = props;
   const { settings, error, change } = useShellSettings();
+  const [hotkey, setHotkey] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (isTauri()) void getHotkey().then(setHotkey, () => setHotkey(null));
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -94,7 +98,77 @@ export function SettingsPanel(props: {
                 </p>
               </div>
               <p className="settings__note">
-                アバターを掴むと窓ごと動かせます。ダブルクリックで表情・口パクの試験パネル。
+                アバターを掴むと窓ごと動かせます。ダブルクリックで状態・表情・口パクの試験パネル。
+              </p>
+
+              <h3 className="settings__sub">ふるまい</h3>
+              <label className="settings__row">
+                <span>体以外はクリックを下のアプリへ通す</span>
+                <input
+                  type="checkbox"
+                  checked={settings.avatarClickThrough}
+                  onChange={(e) => void change({ avatarClickThrough: e.target.checked })}
+                />
+              </label>
+              <label className="settings__row">
+                <span>マウスを目で追う</span>
+                <input
+                  type="checkbox"
+                  checked={settings.avatarFollowCursor}
+                  onChange={(e) => void change({ avatarFollowCursor: e.target.checked })}
+                />
+              </label>
+              <label className="settings__row">
+                <span>頭の上に吹き出しを出す</span>
+                <input
+                  type="checkbox"
+                  checked={settings.avatarBubble}
+                  onChange={(e) => void change({ avatarBubble: e.target.checked })}
+                />
+              </label>
+              <label className="settings__field">
+                <span>吹き出しを消すまで: 話し終えてから {settings.avatarBubbleSeconds} 秒</span>
+                <input
+                  type="range"
+                  min={2}
+                  max={20}
+                  step={1}
+                  value={settings.avatarBubbleSeconds}
+                  disabled={!settings.avatarBubble}
+                  onChange={(e) => void change({ avatarBubbleSeconds: Number(e.target.value) })}
+                />
+              </label>
+              <label className="settings__field">
+                <span>表情の強さ: {Math.round(settings.avatarEmotionStrength * 100)}%</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={settings.avatarEmotionStrength}
+                  onChange={(e) => void change({ avatarEmotionStrength: Number(e.target.value) })}
+                />
+              </label>
+              <label className="settings__field">
+                <span>
+                  居眠りするまで:{" "}
+                  {settings.avatarSleepMinutes === 0
+                    ? "居眠りしない"
+                    : `操作が無いまま ${settings.avatarSleepMinutes} 分`}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={60}
+                  step={1}
+                  value={settings.avatarSleepMinutes}
+                  onChange={(e) => void change({ avatarSleepMinutes: Number(e.target.value) })}
+                />
+              </label>
+              <p className="settings__note">
+                深夜(0〜5 時)は 3 分で眠くなります。話しかけるか、アバターに触れると起きます。
+                表情は返事の言葉から控えめに決めます(モデルが [joy]
+                のような感情タグを書けば、そちらを優先)。
               </p>
             </>
           )}
@@ -131,10 +205,24 @@ export function SettingsPanel(props: {
         <section>
           <h2>ホットキー</h2>
           <p>
-            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd> でこの窓を出し入れ(使えないときは{" "}
-            <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd>)
+            {hotkey ? <kbd>{hotkey}</kbd> : hotkey === null ? "(登録できませんでした)" : "…"}{" "}
+            でチャットを出し入れ
           </p>
-          <p className="settings__note">変更は環境変数 SENTINEL_HOTKEY(設定画面での変更は今後)。</p>
+          {settings && (
+            <label className="settings__row">
+              <span>チャットをアバターの横に出す</span>
+              <input
+                type="checkbox"
+                checked={settings.chatBesideAvatar}
+                onChange={(e) => void change({ chatBesideAvatar: e.target.checked })}
+              />
+            </label>
+          )}
+          <p className="settings__note">
+            Alt+Space を他のアプリ(PowerToys Run など)が使っていると、Ctrl+Shift+Space →
+            Ctrl+Alt+Space の順に代わりを使います。変更は環境変数
+            SENTINEL_HOTKEY(設定画面での変更は今後)。
+          </p>
         </section>
       </aside>
     </div>

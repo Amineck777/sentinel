@@ -15,6 +15,8 @@ export type AudioChunk = {
   data_b64: string;
   duration: number;
   visemes: VisemeTriple[] | null;
+  /** この文の表情(コアの expression.py が決める)。古いコアには無い */
+  emotion?: string;
 };
 
 /** 試聴など、ターンに属さない音声 */
@@ -39,6 +41,8 @@ export class VoicePlayer {
   private chain: Promise<void> = Promise.resolve();
   private sources = new Set<AudioBufferSourceNode>();
   private timers = new Set<number>();
+  private playing = false;
+  private readonly listeners = new Set<(playing: boolean) => void>();
 
   constructor() {
     // 自動再生の制限で AudioContext が止まっていたら、最初の操作で動かす
@@ -78,6 +82,21 @@ export class VoicePlayer {
     this.timers.clear();
     this.nextAt = 0;
     sendLipsync({ kind: "stop" });
+    this.setPlaying(false);
+  }
+
+  /** 声が鳴り始めた・鳴り終わったときに呼ばれる(アバターの「話し中」の判定に使う)。戻り値で解除 */
+  onActivity(cb: (playing: boolean) => void): () => void {
+    this.listeners.add(cb);
+    return () => {
+      this.listeners.delete(cb);
+    };
+  }
+
+  private setPlaying(on: boolean): void {
+    if (this.playing === on) return;
+    this.playing = on;
+    for (const cb of this.listeners) cb(on);
   }
 
   private schedule(clip: Clip): void {
@@ -96,17 +115,22 @@ export class VoicePlayer {
         src.start(startAt);
         this.nextAt = startAt + buffer.duration;
         this.sources.add(src);
-        src.onended = () => this.sources.delete(src);
+        src.onended = () => {
+          this.sources.delete(src);
+          if (this.sources.size === 0 && epoch === this.epoch) this.setPlaying(false);
+        };
 
         // 鳴り始めに合わせて口パクを送る
         const timer = window.setTimeout(
           () => {
             this.timers.delete(timer);
+            this.setPlaying(true);
             sendLipsync({
               kind: "speak",
               text: clip.text,
               duration: buffer.duration,
               visemes: clip.visemes,
+              emotion: clip.emotion ?? null,
             });
           },
           Math.max(0, (startAt - ctx.currentTime) * 1000),

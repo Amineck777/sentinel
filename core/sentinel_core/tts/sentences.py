@@ -52,6 +52,13 @@ class SentenceSplitter:
             self._buf = self._buf[cut:]
         return [s for s in (clean_for_speech(x) for x in out) if speakable(s)]
 
+    def close_finished(self) -> list[str]:
+        """句点で終わっている文を、続きを待たずに閉じる(感情タグが文の間に来たときに使う)。"""
+        m = _END.search(self._buf)
+        if not (m and m.end() == len(self._buf)):
+            return []
+        return self.flush()
+
     def flush(self) -> list[str]:
         rest, self._buf = self._buf, ""
         s = clean_for_speech(rest)

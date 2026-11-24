@@ -155,9 +155,167 @@ html.avatar-desktop .avatar-overlay {
   color: #fff;
   text-shadow: 0 0 4px #000;
 }
+/* 細い窓でも、デスクトップ表示ではキャンバスを窓いっぱいに(上の @media の縦並びを打ち消す) */
+html.avatar-desktop .avatar-page {
+  flex-direction: row;
+}
+html.avatar-desktop .avatar-canvas {
+  flex: 1;
+  height: 100%;
+}
+html.avatar-desktop .avatar-overlay {
+  inset: 0;
+}
 html.avatar-desktop .avatar-panel {
   /* 窓が細いので、パネルは横に並べずキャンバスの上に重ねる */
   position: absolute;
   inset: 0 0 0 auto;
   width: min(300px, 100%);
+}
+
+/* --- 吹き出し(ADR 0114)。頭の上の余白に出す。白地に濃い文字で、どんな壁紙の上でも読める --- */
+.avatar-bubble {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  box-sizing: border-box;
+  background: #ffffff;
+  color: #1d2230;
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  animation: bubble-in 0.18s ease-out;
+  cursor: default;
+}
+.avatar-bubble::after {
+  /* しっぽ(頭の方を指す三角) */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top: 7px solid #ffffff;
+}
+.avatar-bubble p {
+  margin: 0;
+}
+.avatar-bubble__text {
+  /* 長い返事は 4 行まで。続きはチャットで読む */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.avatar-bubble__head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #4f5a6e;
+  margin-bottom: 2px;
+}
+.avatar-bubble--small {
+  padding: 8px 14px;
+}
+.avatar-bubble--error {
+  max-width: calc(100% - 20px);
+  border: 1px solid #f0c9c9;
+}
+.avatar-bubble__detail {
+  font-size: 12px;
+  color: #6b4040;
+}
+.avatar-bubble__btn {
+  margin-top: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #1d2230;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.avatar-bubble__btn:focus-visible {
+  outline: 2px solid #2f6fd6;
+  outline-offset: 2px;
+}
+.avatar-dots {
+  display: inline-flex;
+  gap: 5px;
+  padding: 4px 0;
+}
+.avatar-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4f5a6e;
+  animation: dot 1.2s infinite;
+}
+.avatar-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.avatar-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.avatar-zz {
+  position: absolute;
+  top: 16%;
+  right: 22%;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+.avatar-zz span {
+  display: inline-block;
+  animation: zz 2.8s ease-in-out infinite;
+}
+.avatar-zz span:nth-child(2) {
+  font-size: 16px;
+  animation-delay: 1.2s;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+@keyframes dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes zz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 6px);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-bubble,
+  .avatar-dots i,
+  .avatar-zz span {
+    animation: none;
+  }
 }

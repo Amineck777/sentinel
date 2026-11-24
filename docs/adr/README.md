@@ -17,5 +17,6 @@
 | [0111](0111-original-main-persona.md) | 主人格はオリジナルとし、ユウカは私的 Pack とする | Accepted |
 | [0112](0112-new-ollama-persona.md) | Ollama で使う人格は新しく作り、ユウカ LoRA の GGUF 化は行わない | Accepted |
 | [0113](0113-pluggable-tts-voicevox-first.md) | TTS はコアの差し込み口(アダプタ)にし、まず VOICEVOX ENGINE(HTTP)で鳴らす | Accepted |
+| [0114](0114-avatar-desktop-ui.md) | アバターは透明な別窓に常駐させ、状態はチャット窓が決めて送る | Accepted |
 
 Proposed はロードマップで決めた方針で、作者の確認後に Accepted に変える。

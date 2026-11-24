@@ -1,7 +1,8 @@
 """返答の読み上げ(仕様 §18.4)。
 
-ChatService が LLM のトークンを流すたびに `Utterance.feed()` へ渡す。文が閉じたら
-合成待ちの列に積み、1本の作業タスクが順番に合成して `audio_chunk` イベントで画面へ送る。
+ChatService が LLM の返答を文に切り(expression.TurnExpression)、文が閉じるたびに
+`Utterance.say()` で合成待ちの列に積む。1本の作業タスクが
+順番に合成して `audio_chunk` イベントで画面へ送る。
 画面は受け取った順に再生し、同時にアバター窓へ口パクのタイムラインを渡す。
 
 - 新しいターンが始まったら、前のターンの未合成の文は捨てる(話の途中で次の返事が来たとき、
@@ -21,7 +22,6 @@ from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.memory.store import Store
 from sentinel_core.tts.base import Speech, TTSEngine, TTSUnavailableError, VoiceParams
-from sentinel_core.tts.sentences import SentenceSplitter
 
 ENABLED_KEY = "voice.enabled"
 SPEAKER_KEY = "voice.speaker."  # + キャラID(汎用モードは "none")
@@ -49,33 +49,28 @@ class _Job:
     text: str  # None ではない文。ターンの終わりは done=True で表す
     voice: VoiceParams
     done: bool = False
+    emotion: str = "neutral"  # この文の表情(アバター用。expression.py)
 
 
 class Utterance:
-    """1ターン分の読み上げ。トークンを受けて文単位で合成待ちに積む。"""
+    """1ターン分の読み上げ。閉じた文を受け取って合成待ちに積む。"""
 
     def __init__(self, service: SpeechService, turn: int, session_id: str, voice: VoiceParams):
         self._service = service
         self._turn = turn
         self._session_id = session_id
         self._voice = voice
-        self._splitter = SentenceSplitter()
         self._seq = 0
 
-    def feed(self, delta: str) -> None:
-        for s in self._splitter.feed(delta):
-            self._push(s)
+    def say(self, text: str, emotion: str = "neutral") -> None:
+        job = _Job(self._turn, self._session_id, self._seq, text, self._voice, emotion=emotion)
+        self._service.enqueue(job)
+        self._seq += 1
 
     def finish(self) -> None:
-        for s in self._splitter.flush():
-            self._push(s)
         self._service.enqueue(
             _Job(self._turn, self._session_id, self._seq, "", self._voice, done=True)
         )
-
-    def _push(self, text: str) -> None:
-        self._service.enqueue(_Job(self._turn, self._session_id, self._seq, text, self._voice))
-        self._seq += 1
 
 
 class SpeechService:
@@ -213,6 +208,7 @@ class SpeechService:
                     "turn": job.turn,
                     "seq": job.seq,
                     "text": job.text,
+                    "emotion": job.emotion,
                     **speech_payload(speech),
                 }
             )

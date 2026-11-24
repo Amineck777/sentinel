@@ -15,7 +15,14 @@ export type VisemeTriple = [
 ];
 
 export type LipsyncMessage =
-  | { kind: "speak"; text: string; duration: number; visemes: VisemeTriple[] | null }
+  | {
+      kind: "speak";
+      text: string;
+      duration: number;
+      visemes: VisemeTriple[] | null;
+      /** この文の表情(コアの感情の名前)。分からなければ null */
+      emotion?: string | null;
+    }
   | { kind: "stop" };
 
 const EVENT = "avatar://lipsync";

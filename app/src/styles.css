@@ -211,3 +211,18 @@ body {
 .rail__toggle:focus-visible {
   text-decoration: underline;
 }
+
+/* --- 細い窓(アバターの横に出すチャットパネル)。レールを折り返し、余白を詰める --- */
+@media (max-width: 560px) {
+  .rail {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px 10px;
+  }
+  .rail .spacer {
+    display: none;
+  }
+  .char {
+    margin-left: auto;
+  }
+}

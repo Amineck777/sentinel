@@ -22,6 +22,20 @@ pub struct ShellSettings {
     pub avatar_always_on_top: bool,
     /// アバターの VRM ファイルの場所。リポジトリには入れず、手元のファイルを指す(ADR 0109)
     pub avatar_model_path: Option<String>,
+    /// 体以外の透明な部分のクリックを、下のアプリへ通すか
+    pub avatar_click_through: bool,
+    /// 頭の上に吹き出しを出すか
+    pub avatar_bubble: bool,
+    /// 吹き出しが消えるまでの秒数(話し終えてから)
+    pub avatar_bubble_seconds: u32,
+    /// マウスカーソルを目で追うか
+    pub avatar_follow_cursor: bool,
+    /// 表情の強さ(0〜1)。落ち着いたキャラは小さめ
+    pub avatar_emotion_strength: f32,
+    /// 操作が無いまま何分で居眠りするか(0 で居眠りしない)
+    pub avatar_sleep_minutes: u32,
+    /// ホットキーでチャットを開くとき、アバターの横に出すか
+    pub chat_beside_avatar: bool,
 }
 
 impl Default for ShellSettings {
@@ -30,6 +44,13 @@ impl Default for ShellSettings {
             avatar_visible: false,
             avatar_always_on_top: true,
             avatar_model_path: None,
+            avatar_click_through: true,
+            avatar_bubble: true,
+            avatar_bubble_seconds: 6,
+            avatar_follow_cursor: true,
+            avatar_emotion_strength: 0.45,
+            avatar_sleep_minutes: 10,
+            chat_beside_avatar: true,
         }
     }
 }
@@ -107,12 +128,19 @@ pub fn get_settings(state: tauri::State<'_, SettingsState>) -> ShellSettings {
 }
 
 #[tauri::command]
-pub fn update_settings(app: AppHandle, settings: ShellSettings) -> Result<ShellSettings, String> {
+pub fn update_settings(
+    app: AppHandle,
+    mut settings: ShellSettings,
+) -> Result<ShellSettings, String> {
     if let Some(p) = &settings.avatar_model_path {
         if !std::path::Path::new(p).is_file() {
             return Err(format!("ファイルが見つかりません: {p}"));
         }
     }
+    // 画面から変な値が来ても壊れないよう、範囲に収める
+    settings.avatar_emotion_strength = settings.avatar_emotion_strength.clamp(0.0, 1.0);
+    settings.avatar_bubble_seconds = settings.avatar_bubble_seconds.clamp(1, 60);
+    settings.avatar_sleep_minutes = settings.avatar_sleep_minutes.min(240);
     replace(&app, settings)
 }
 
