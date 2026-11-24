@@ -3,6 +3,13 @@ import type { Voice } from "./useVoice";
 
 const SAMPLE = "おかえりなさいませ、マスター。今日もお疲れさまでした。";
 
+// コアが返すエンジン名 → 画面に出す名前。
+// voicevox_core = コアに同梱した VOICEVOX CORE(アプリ不要)、voicevox = 別に起動した VOICEVOX アプリ
+const ENGINE_LABELS: Record<string, string> = {
+  voicevox_core: "VOICEVOX CORE 同梱版(アプリ不要)",
+  voicevox: "VOICEVOX アプリ",
+};
+
 /** 設定画面の「声」。オン/オフ、キャラごとの声選び、試聴 */
 export function VoiceSection(props: { voice: Voice; characterName: string }) {
   const { voice, characterName } = props;
@@ -13,6 +20,8 @@ export function VoiceSection(props: { voice: Voice; characterName: string }) {
   useEffect(() => void loadSpeakers(), [loadSpeakers]);
 
   const selected = speakers?.find((s) => s.styles.some((st) => st.id === status?.speaker_id));
+  // 同梱の CORE なら「起動してください」ではなく「セットアップしてください」と案内する
+  const bundled = status?.engine === "voicevox_core";
 
   return (
     <section>
@@ -32,7 +41,8 @@ export function VoiceSection(props: { voice: Voice; characterName: string }) {
           <dl className="settings__info">
             <dt>エンジン</dt>
             <dd>
-              {status.engine ?? "なし"}({status.available ? "接続中" : "未接続"})
+              {status.engine ? (ENGINE_LABELS[status.engine] ?? status.engine) : "なし"} /{" "}
+              {status.available ? "使えます" : "使えません"}
             </dd>
           </dl>
 
@@ -58,7 +68,11 @@ export function VoiceSection(props: { voice: Voice; characterName: string }) {
                 ))}
               </select>
             ) : (
-              <p className="settings__note">VOICEVOX を起動すると、ここで声を選べます。</p>
+              <p className="settings__note">
+                {bundled
+                  ? "VOICEVOX CORE の準備ができると、ここで声を選べます(scripts/setup_voicevox_core.py)。"
+                  : "VOICEVOX を起動すると、ここで声を選べます。"}
+              </p>
             )}
             <input
               className="settings__input"
@@ -91,7 +105,9 @@ export function VoiceSection(props: { voice: Voice; characterName: string }) {
             <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noreferrer">
               VOICEVOX
             </a>{" "}
-            を起動しておくと使えます(GPU ではなく CPU で動くので、LLM の邪魔をしません)。
+            で作ります。同梱の VOICEVOX CORE を入れればアプリの起動は要らず、入れていなければ
+            VOICEVOX アプリを起動しておくと使えます(どちらも GPU ではなく CPU で動くので、LLM
+            の邪魔をしません)。
             キャラごとに利用規約が違うので、配信や公開に使う前にそのキャラの規約を確認してください。
           </p>
         </>

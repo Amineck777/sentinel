@@ -10,10 +10,13 @@ character:
   active: "none"
 voice:                                # 返答の読み上げ。画面の設定(右上の歯車 → 声)の方が優先
   enabled: false
-  engine: "voicevox"                  # voicevox / none
+  engine: "auto"                      # auto / voicevox_core / voicevox / none(auto = 同梱 CORE があればそれ、無ければアプリ)
   endpoint: "http://127.0.0.1:50021"  # VOICEVOX(アプリかエンジン)の待ち受け先
   speaker_id: 122                     # 話者(スタイル)ID。122 = 暁記ミタマ(ノーマル)。null ならエンジンの最初の声
   speed: 1.0
   pitch: 0.0
+  core:                               # 同梱の VOICEVOX CORE(scripts/setup_voicevox_core.py で入れる)
+    dir: null                         # null なら {APP_DATA}/sentinel/voicevox_core
+    cpu_threads: 0                    # 合成に使う CPU の数。0 なら CORE に任せる
 app:
   language: "ja"

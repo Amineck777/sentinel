@@ -30,7 +30,8 @@ DEFAULT_ENDPOINT = "http://127.0.0.1:50021"
 
 UNAVAILABLE_NOTICE = (
     "VOICEVOX に接続できませんでした。VOICEVOX を起動しているか確認してください"
-    "(声を使わないときは設定の「声」をオフにします)。"
+    "(アプリ無しで使うなら scripts/setup_voicevox_core.py で VOICEVOX CORE を入れます。"
+    "声を使わないときは設定の「声」をオフにします)。"
 )
 
 # 音声クエリの母音 → VRM の口の形。N(ん)・cl(っ)・pau(無音)は口を閉じる

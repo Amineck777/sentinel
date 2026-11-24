@@ -57,7 +57,10 @@ export function useVoice(core: CoreInfo | null, active: string, player: VoicePla
       setError(null);
     } catch {
       setSpeakers(null);
-      setError("VOICEVOX に繋がりません。VOICEVOX を起動してから開き直してください。");
+      // 同梱の CORE でもアプリでも出るので、両方の直し方を書く
+      setError(
+        "声のエンジンが使えません。VOICEVOX アプリを起動するか、VOICEVOX CORE をセットアップしてから開き直してください。",
+      );
     }
     void refresh();
   }, [core, refresh]);
@@ -91,7 +94,9 @@ export function useVoice(core: CoreInfo | null, active: string, player: VoicePla
       player.play({ ...clip, text });
       setError(null);
     } catch {
-      setError("試聴できませんでした。VOICEVOX が起動しているか確認してください。");
+      setError(
+        "試聴できませんでした。VOICEVOX(アプリか同梱の CORE)が使える状態か確認してください。",
+      );
     }
   };
 

@@ -35,11 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # 配布規約で再配布禁止のモデルがあるため、モデル類が追跡されていたら落とす(ADR 0109)
-      - name: Guard against committed avatar models
+      # 配布規約で再配布禁止のモデルがあるため、モデル類が追跡されていたら落とす(ADR 0109)。
+      # VOICEVOX CORE の音声モデル・ONNX Runtime・wheel も同じく入れない(ADR 0115)
+      - name: Guard against committed models and binaries
         run: |
-          if git ls-files | grep -iE '\.(vrm|vroid|unitypackage|psd)$|(^|/)\.env\.local$'; then
-            echo "::error::アバターモデル等がリポジトリに含まれています。git rm --cached で外してください"
+          if git ls-files | grep -iE '\.(vrm|vroid|unitypackage|psd|vvm|onnx|whl|dll|dylib|so)$|(^|/)\.env\.local$'; then
+            echo "::error::モデル・バイナリ等がリポジトリに含まれています。git rm --cached で外してください"
             exit 1
           fi
       - uses: actions/setup-node@v4

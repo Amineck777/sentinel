@@ -89,7 +89,7 @@ def create_app(
     )
     voice_cfg = settings.data["voice"]
     app.state.speech = SpeechService(
-        engine=tts or make_engine(voice_cfg),
+        engine=tts or make_engine(voice_cfg, settings.data_dir),
         store=store,
         characters=app.state.characters,
         hub=app.state.hub,
