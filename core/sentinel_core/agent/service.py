@@ -9,16 +9,19 @@ POST /v1/chat から呼ばれ、即座に (session_id, message_id) を返し、
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import time
 from collections.abc import Coroutine
 from datetime import datetime
 from typing import Any
 
-from sentinel_core.agent.prompts import system_prompt
+from sentinel_core.agent.prompts import PROMPT_VERSION, build_system, persona_hash
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.expression import TurnExpression
 from sentinel_core.llm.client import LLMClient, LLMUnavailableError
-from sentinel_core.memory.store import Store
+from sentinel_core.memory.budget import estimate_message_tokens
+from sentinel_core.memory.store import Store, now_iso
 from sentinel_core.tts.service import SpeechService
 
 
@@ -54,8 +57,13 @@ class ChatService:
         hub: EventHub,
         default_model: str,
         speech: SpeechService | None = None,
+        short_term_tokens: int = 2500,
+        session_resume_hours: float = 6,
     ) -> None:
         self._store = store
+        # 短期記憶(直近の会話をそのまま渡す分)の上限と、再起動後に会話を続ける時間(ADR 0116)
+        self._short_term_tokens = short_term_tokens
+        self._session_resume_hours = session_resume_hours
         self._speech = speech  # 返答の読み上げ。None なら声なし
         self._default_model = default_model  # 記録用(Packがモデルを指定しないときの名前)
         self._llm = llm
@@ -77,8 +85,8 @@ class ChatService:
         """ユーザー発話を保存し、生成をバックグラウンドで開始する。"""
         if character_id is not None:
             self._characters.activate(character_id)
-        sid = self._store.ensure_session(session_id, self._characters.active_id)
-        mid = self._store.add_message(sid, "user", content)
+        sid = self._resolve_session(session_id)
+        mid = self._store.add_message(sid, "user", content, character_id=self._characters.active_id)
         self._spawn(self._generate(sid))
         return sid, mid
 
@@ -90,9 +98,29 @@ class ChatService:
         """
         if self._characters.active_pack() is None:
             return None
-        sid = self._store.ensure_session(session_id, self._characters.active_id)
+        sid = self._resolve_session(session_id)
         self._spawn(self._generate(sid, cue=greeting_cue()))
         return sid
+
+    def _resolve_session(self, session_id: str | None) -> str:
+        """このターンで使うセッションを決める(ADR 0116 の短期記憶)。
+
+        1. 画面が渡したセッションが今のキャラのものなら、それを続ける
+        2. そうでなければ(起動直後・別キャラのセッション)、今のキャラと最後に話した
+           セッションが session_resume_hours 以内なら、それを続ける(再起動しても会話が切れない)
+        3. どちらでもなければ新しいセッション
+        別キャラのセッションを続けないのは、出来事をキャラ別に覚えるため(論点5)。
+        """
+        active = self._characters.active_id
+        if session_id:
+            found, owner = self._store.session_owner(session_id)
+            if not found:
+                # 画面が自分で決めた新しい ID。そのまま作る(今までと同じ振る舞い)
+                return self._store.ensure_session(session_id, active)
+            if owner == active:
+                return session_id
+        resumed = self._store.resumable_session(active, self._session_resume_hours)
+        return resumed or self._store.ensure_session(None, active)
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.get_running_loop().create_task(coro)
@@ -111,17 +139,23 @@ class ChatService:
 
     async def _generate_turn(self, session_id: str, cue: str | None = None) -> None:
         pack = self._characters.active_pack()
+        character_id = self._characters.active_id
         messages: list[dict[str, str]] = []
-        # 人格をモデル側(Modelfile の SYSTEM)に持つPackでは system を送らない。
-        # 送ると Ollama はそちらを優先し、Modelfile の人格が消えるため
-        if not (pack and pack.use_model_system):
-            messages.append(
-                {"role": "system", "content": system_prompt(self._characters.active_fragment())}
-            )
-        messages += self._store.history(session_id)
+        # system の文(None なら送らない)。決め方は prompts.build_system
+        system = build_system(pack, self._characters.active_fragment())
+        if system is not None:
+            messages.append({"role": "system", "content": system})
+        # 短期記憶: 直近の会話を、トークン数の上限まで新しい順に(memory/store.py)
+        messages += self._store.recent_history(session_id, self._short_term_tokens)
         if cue:  # 保存しない合図(挨拶など)。履歴の最後に user として足す
             messages.append({"role": "user", "content": cue})
         model = self.active_model()
+
+        # --- 自己観測ログ用の計測(ADR 0116 論点7)---
+        started_at = now_iso()
+        t0 = time.monotonic()
+        first_token_ms: int | None = None
+        error: str | None = None
 
         parts: list[str] = []
         # 声がオンなら、文が閉じるたびに合成を始める(全文を待たずに話し始める)
@@ -131,7 +165,10 @@ class ChatService:
         shown_emotion = "neutral"
 
         async def emit(clean: str, sentences: list[tuple[str, str]]) -> None:
-            nonlocal shown_emotion
+            nonlocal shown_emotion, first_token_ms
+            if clean and first_token_ms is None:
+                # 最初の文字が画面に出るまでの時間。体感の速さに一番効く数字
+                first_token_ms = int((time.monotonic() - t0) * 1000)
             if clean:
                 parts.append(clean)
                 await self._hub.publish({"type": "token", "session_id": session_id, "delta": clean})
@@ -149,11 +186,11 @@ class ChatService:
                 await emit(*expr.feed(delta))
         except LLMUnavailableError as e:
             # オフライン応答などの案内文は通知として見せ、履歴には残さない
+            error = str(e)
             await self._hub.publish({"type": "notice", "level": "warn", "text": str(e)})
         except Exception as e:  # 予期しない失敗もUIへ通知して終端する(無言で固まらせない)
-            await self._hub.publish(
-                {"type": "notice", "level": "error", "text": f"生成エラー: {e}"}
-            )
+            error = f"生成エラー: {e}"
+            await self._hub.publish({"type": "notice", "level": "error", "text": error})
 
         finally:
             # 閉じずに終わった最後の文も表示・読み上げる
@@ -164,9 +201,65 @@ class ChatService:
         # 保存するのはモデルが実際に生成した文だけ(途中で切れた場合はそこまで)。
         # 何も生成されなかったターンは assistant 発言を作らない
         full = "".join(parts)
-        if not full:
+        mid = (
+            self._store.add_message(
+                session_id, "assistant", full, model=model, character_id=character_id
+            )
+            if full
+            else None
+        )
+        # 返答できなかったターンも、失敗の記録として観測ログには残す
+        self._log_turn(
+            session_id=session_id,
+            message_id=mid,
+            character_id=character_id,
+            model=model,
+            system=system,
+            messages=messages,
+            started_at=started_at,
+            first_token_ms=first_token_ms,
+            total_ms=int((time.monotonic() - t0) * 1000),
+            error=error,
+        )
+        if mid is None:
             return
-        mid = self._store.add_message(session_id, "assistant", full, model=model)
         await self._hub.publish(
             {"type": "message_done", "session_id": session_id, "message_id": mid}
         )
+
+    def _log_turn(
+        self,
+        *,
+        session_id: str,
+        message_id: str | None,
+        character_id: str | None,
+        model: str,
+        system: str | None,
+        messages: list[dict[str, str]],
+        started_at: str,
+        first_token_ms: int | None,
+        total_ms: int,
+        error: str | None,
+    ) -> None:
+        """自己観測ログを1件書く。ログの失敗で会話を止めないよう、例外は握りつぶす。"""
+        # 推論サーバーが返したトークン数(返さないサーバーや失敗時は None)
+        usage = getattr(self._llm, "last_usage", None) or {}
+        # 観測ログは「無くても会話は続く」もの。書けなくても(DB のロック等)会話は止めない
+        with contextlib.suppress(Exception):
+            self._store.add_turn_log(
+                session_id=session_id,
+                message_id=message_id,
+                character_id=character_id,
+                model=model,
+                persona_hash=persona_hash(system),
+                prompt_version=PROMPT_VERSION,
+                recalled_ids=[],  # 思い出した記憶の ID。長期記憶の検索(PR3)で埋める
+                started_at=started_at,
+                first_token_ms=first_token_ms,
+                total_ms=total_ms,
+                # こちらの見積もり。usage と比べれば、見積もりがどれだけ多めかも分かる
+                prompt_tokens_est=sum(estimate_message_tokens(m["content"]) for m in messages),
+                prompt_tokens=usage.get("prompt_tokens"),
+                completion_tokens=usage.get("completion_tokens"),
+                error=error,
+            )

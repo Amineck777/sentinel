@@ -102,6 +102,8 @@ def create_app(
         hub=app.state.hub,
         default_model=settings.chat_model,
         speech=app.state.speech,
+        short_term_tokens=int(settings.data["memory"]["short_term_tokens"]),
+        session_resume_hours=float(settings.data["memory"]["session_resume_hours"]),
     )
 
     guard = make_http_guard(token)

@@ -46,7 +46,11 @@ llm:
   # model: "eva"               # このキャラで使うモデル名(Ollama のモデル名)。省略時は config の llm.chat_model
   # system_prompt: "pack"      # pack  = persona/ の .md から system を作って送る(既定)
                                # model = system を送らず、モデル自身の人格(Modelfile の SYSTEM)を使う
-                               #         (model を指定したときだけ使える)
+                               #         (model を指定したときだけ使える。記憶は足せない)
+                               # file  = system_file の1ファイルを人格の文として送る。コアが記憶を
+                               #         足せる(ADR 0116)。Modelfile の SYSTEM は
+                               #         scripts/build_modelfile.py で同じファイルから作る
+  # system_file: "persona/system.md"  # file のときの人格の文。Pack のフォルダからの相対パス
   lora_path: null              # "lora/adapter" にするとLv3有効化(§17.4)
                                # ※有効化前にFC evalゲート(-3pt以内)を必ず通すこと
 
