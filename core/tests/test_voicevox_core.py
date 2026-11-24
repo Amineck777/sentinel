@@ -203,6 +203,20 @@ def test_core_query_becomes_engine_shaped_dict():
     assert d["accent_phrases"][1]["pause_mora"] is None
 
 
+def test_core_query_with_dict_parts():
+    # 本物の CORE では pause_mora などが dict のまま入っていることがある(Windows 実機で確認)
+    q = make_query()
+    q.accent_phrases[0].pause_mora = {"text": "、", "vowel": "pau", "vowel_length": 0.2}  # type: ignore[assignment]
+    q.accent_phrases[1].moras = [{"vowel": "N", "vowel_length": 0.1}]  # type: ignore[list-item]
+    d = query_to_engine_dict(q)
+    assert d["accent_phrases"][0]["pause_mora"]["vowel_length"] == 0.2
+    assert d["accent_phrases"][1]["moras"][0] == {
+        "vowel": "N",
+        "vowel_length": 0.1,
+        "consonant_length": None,
+    }
+
+
 # --- アダプタの流れ ---
 
 

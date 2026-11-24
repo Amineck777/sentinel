@@ -43,6 +43,17 @@ _NON_TALK_TYPES = {"singing_teacher", "frame_decode", "sing"}
 _RETRY_AFTER_SEC = 10.0
 
 
+def _get(obj: Any, key: str) -> Any:
+    """データクラスの属性でも dict のキーでも同じように読む。
+
+    本物の CORE(0.17.0)では、AudioQuery の中身が一部 dict のまま入っていることがある
+    (Windows 実機で pause_mora が dict だった)。どちらの形でも読めるようにしておく。
+    """
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
+
 def query_to_engine_dict(query: Any) -> dict[str, Any]:
     """CORE の AudioQuery(Python のデータクラス)を、ENGINE の JSON と同じ形の dict にする。
 
@@ -52,21 +63,24 @@ def query_to_engine_dict(query: Any) -> dict[str, Any]:
 
     def mora(m: Any) -> dict[str, Any]:
         return {
-            "vowel": m.vowel,
-            "vowel_length": m.vowel_length,
-            "consonant_length": m.consonant_length,
+            "vowel": _get(m, "vowel"),
+            "vowel_length": _get(m, "vowel_length"),
+            "consonant_length": _get(m, "consonant_length"),
         }
 
-    return {
-        "speedScale": query.speed_scale,
-        "prePhonemeLength": query.pre_phoneme_length,
-        "accent_phrases": [
+    phrases = []
+    for ap in _get(query, "accent_phrases") or []:
+        pause = _get(ap, "pause_mora")
+        phrases.append(
             {
-                "moras": [mora(m) for m in ap.moras],
-                "pause_mora": mora(ap.pause_mora) if ap.pause_mora is not None else None,
+                "moras": [mora(m) for m in _get(ap, "moras") or []],
+                "pause_mora": mora(pause) if pause is not None else None,
             }
-            for ap in query.accent_phrases
-        ],
+        )
+    return {
+        "speedScale": _get(query, "speed_scale"),
+        "prePhonemeLength": _get(query, "pre_phoneme_length"),
+        "accent_phrases": phrases,
     }
 
 
