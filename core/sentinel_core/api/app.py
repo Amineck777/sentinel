@@ -14,13 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sentinel_core import __version__
 from sentinel_core.agent.service import ChatService
-from sentinel_core.api.http import characters, chat, system, voice
+from sentinel_core.api.http import characters, chat, memory, system, voice
 from sentinel_core.api.ws import stream
 from sentinel_core.auth import TOKEN_HEADER, make_http_guard
 from sentinel_core.character.registry import CharacterRegistry
 from sentinel_core.events import EventHub
 from sentinel_core.llm.client import LLMClient
 from sentinel_core.llm.openai_compat import OpenAICompatClient
+from sentinel_core.memory.longterm import LongTermStore
+from sentinel_core.memory.scheduler import MemoryScheduler
 from sentinel_core.memory.store import Store
 from sentinel_core.settings import Settings
 from sentinel_core.tts.base import TTSEngine
@@ -49,7 +51,12 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        app.state.memory.start()  # 少し待ってから、前回の記憶づくりの積み残しを処理する
         yield
+        # 終了時: 残りの記憶づくりを時間を区切って試みる(間に合わなければ次の起動時に作る)
+        await app.state.memory.aclose(
+            flush_timeout=float(settings.data["memory"]["extract_on_exit_timeout_sec"])
+        )
         await app.state.speech.aclose()
         aclose = getattr(app.state.llm, "aclose", None)  # モックLLMはacloseを持たなくてよい
         if aclose:
@@ -105,11 +112,26 @@ def create_app(
         short_term_tokens=int(settings.data["memory"]["short_term_tokens"]),
         session_resume_hours=float(settings.data["memory"]["session_resume_hours"]),
     )
+    # 長期記憶(出来事と事実)。作るタイミングは memory/scheduler.py(ADR 0116 論点2)
+    mem_cfg = settings.data["memory"]
+    app.state.longterm = LongTermStore(store.path)
+    app.state.memory = MemoryScheduler(
+        app.state.longterm,
+        app.state.llm,
+        app.state.characters,
+        settings.chat_model,
+        idle_seconds=float(mem_cfg["extract_idle_minutes"]) * 60,
+        startup_delay_seconds=float(mem_cfg["extract_startup_delay_sec"]),
+        chunk_tokens=int(mem_cfg["extract_chunk_tokens"]),
+        is_busy=app.state.chat.is_generating,
+    )
+    app.state.chat.attach_memory(app.state.memory)
 
     guard = make_http_guard(token)
     app.include_router(system.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(chat.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(characters.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(voice.router, prefix="/v1", dependencies=[Depends(guard)])
+    app.include_router(memory.router, prefix="/v1", dependencies=[Depends(guard)])
     app.include_router(stream.router, prefix="/v1")  # WSはハンドラ内でトークン検証
     return app

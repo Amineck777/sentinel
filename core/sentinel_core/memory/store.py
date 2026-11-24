@@ -87,7 +87,72 @@ CREATE TABLE IF NOT EXISTS turn_logs (
 CREATE INDEX IF NOT EXISTS idx_turn_logs_session ON turn_logs(session_id, started_at)
 """
 
-MIGRATIONS: list[str] = [_V1, _V2, _V3, _V4]
+# 版5: 長期記憶(ADR 0116 の PR2)。どれも messages(原文)から作る二次記録で、作り直せる
+# - episodes: 出来事。会話のまとまり1つにつき1件。キャラ別に思い出す(論点5)
+#   pad_* は将来の疑似感情用に空で用意しておく(ロードマップ §5 のエピソード初版スキーマ)
+# - facts: マスターについての事実。全キャラで共有する。訂正は上書きせず、
+#   古い方を superseded にして superseded_by で新しい方を指す(論点6)
+# - memory_fts: キーワード検索の索引(FTS5 の trigram。日本語を3文字ずつ区切って引く)
+# - memory_jobs: 記憶づくりの記録。どの発言(rowid の範囲)まで記憶にしたかの目印も兼ねる
+_V5 = """
+CREATE TABLE IF NOT EXISTS episodes (
+  id TEXT PRIMARY KEY,
+  character_id TEXT,
+  session_id TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  ended_at TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  importance REAL NOT NULL DEFAULT 0.5,
+  source_message_ids TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','forgotten')),
+  pad_valence REAL,
+  pad_arousal REAL,
+  pad_dominance REAL,
+  extractor_model TEXT,
+  schema_version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_episodes_character ON episodes(character_id, ended_at);
+CREATE TABLE IF NOT EXISTS facts (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  content TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'fact' CHECK(kind IN ('fact','inference')),
+  confidence REAL NOT NULL DEFAULT 0.5,
+  importance REAL NOT NULL DEFAULT 0.5,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  source_message_ids TEXT NOT NULL DEFAULT '[]',
+  source_character_id TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','superseded','forgotten')),
+  superseded_by TEXT,
+  extractor_model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_facts_status ON facts(status, importance);
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+  text, item_type UNINDEXED, item_id UNINDEXED, tokenize='trigram'
+);
+CREATE TABLE IF NOT EXISTS memory_jobs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  character_id TEXT,
+  from_rowid INTEGER NOT NULL,
+  to_rowid INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('done','skipped','failed')),
+  model TEXT,
+  n_episodes INTEGER NOT NULL DEFAULT 0,
+  n_facts INTEGER NOT NULL DEFAULT 0,
+  n_corrections INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL,
+  duration_ms INTEGER,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_memory_jobs_session ON memory_jobs(session_id, to_rowid)
+"""
+
+MIGRATIONS: list[str] = [_V1, _V2, _V3, _V4, _V5]
 SCHEMA_VERSION = len(MIGRATIONS)
 
 
@@ -157,6 +222,11 @@ class Store:
     def schema_version(self) -> int:
         with closing(self._connect()) as c:
             return int(c.execute("PRAGMA user_version").fetchone()[0])
+
+    @property
+    def path(self) -> Path:
+        """DB ファイルの場所(長期記憶 memory/longterm.py が同じファイルを開くため)。"""
+        return self._path
 
     def _connect(self) -> sqlite3.Connection:
         c = sqlite3.connect(self._path)

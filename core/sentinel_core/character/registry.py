@@ -65,6 +65,14 @@ class CharacterRegistry:
         pack = self._packs.get(self._active) if self._active else None
         return pack if pack and pack.valid else None
 
+    def get(self, char_id: str | None) -> CharacterPack | None:
+        """ID で有効な Pack を引く(アクティブでなくてよい)。無い・壊れている・None なら None。
+
+        記憶づくりは「そのセッションのキャラ」の名前とモデルで行うため(今のキャラとは限らない)。
+        """
+        pack = self._packs.get(char_id) if char_id else None
+        return pack if pack and pack.valid else None
+
     def active_fragment(self) -> str | None:
         """アクティブなキャラの口調フラグメント。汎用モードでは None。"""
         pack = self._packs.get(self._active) if self._active else None

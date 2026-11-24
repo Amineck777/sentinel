@@ -21,6 +21,7 @@ from sentinel_core.events import EventHub
 from sentinel_core.expression import TurnExpression
 from sentinel_core.llm.client import LLMClient, LLMUnavailableError
 from sentinel_core.memory.budget import estimate_message_tokens
+from sentinel_core.memory.scheduler import MemoryScheduler
 from sentinel_core.memory.store import Store, now_iso
 from sentinel_core.tts.service import SpeechService
 
@@ -75,6 +76,16 @@ class ChatService:
         # 交錯するのを防ぐ。エントリは解放しない(個人利用のセッション数では
         # 問題にならず、解放処理は取得との競合を生むため)
         self._session_locks: dict[str, asyncio.Lock] = {}
+        # 長期記憶づくりの予約係(app.py が後から attach_memory でつなぐ)。None なら作らない
+        self._memory: MemoryScheduler | None = None
+
+    def attach_memory(self, scheduler: MemoryScheduler) -> None:
+        """記憶づくりの予約係をつなぐ(予約係もこのクラスの「生成中か」を参照するので、後から渡す)。"""
+        self._memory = scheduler
+
+    def is_generating(self) -> bool:
+        """どこかのセッションで返答を生成中か。生成中は GPU を記憶づくりに使わせない。"""
+        return any(lock.locked() for lock in self._session_locks.values())
 
     def start_turn(
         self,
@@ -87,6 +98,8 @@ class ChatService:
             self._characters.activate(character_id)
         sid = self._resolve_session(session_id)
         mid = self._store.add_message(sid, "user", content, character_id=self._characters.active_id)
+        if self._memory:
+            self._memory.on_user_activity()  # 記憶づくりを止めて、GPU を会話に回す
         self._spawn(self._generate(sid))
         return sid, mid
 
@@ -99,6 +112,8 @@ class ChatService:
         if self._characters.active_pack() is None:
             return None
         sid = self._resolve_session(session_id)
+        if self._memory:
+            self._memory.on_user_activity()  # 挨拶の生成中も GPU を譲ってもらう
         self._spawn(self._generate(sid, cue=greeting_cue()))
         return sid
 
@@ -131,6 +146,9 @@ class ChatService:
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             await self._generate_turn(session_id, cue)
+        if self._memory:
+            # 返答が終わった。ここから一定時間話さなければ「会話の区切り」として記憶を作る
+            self._memory.on_turn_finished()
 
     def active_model(self) -> str:
         """今のキャラで使うモデル名(Packの指定 > 設定の llm.chat_model)。"""

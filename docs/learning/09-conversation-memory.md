@@ -175,3 +175,94 @@ LLM が取り出す事実は、ときどき間違える(冗談を本気にする
 # 直近の観測ログを見る(DB の場所はノート03)
 python -c "import sqlite3,os;p=os.path.expandvars(r'%LOCALAPPDATA%\sentinel\sentinel\data\sentinel.db');[print(r) for r in sqlite3.connect(p).execute('SELECT started_at,model,persona_hash,first_token_ms,total_ms,prompt_tokens_est,prompt_tokens,error FROM turn_logs ORDER BY rowid DESC LIMIT 5')]"
 ```
+
+---
+
+## 実装メモ PR2:記憶づくりとキーワード検索
+
+### 全体の流れ
+
+```
+返答が終わる ─→ scheduler.on_turn_finished(15分のタイマーを張り直す)
+マスターが話す ─→ scheduler.on_user_activity(タイマーと記憶づくりを止める)
+15分たつ ─────→ run_pending
+                 └ セッションごとに「まだ記憶にしていない発言」を取り出す(longterm.pending_messages)
+                    └ 約2500トークンずつに区切る
+                       └ 記憶係として LLM を呼ぶ(extractor.extract)→ JSON
+                          └ 出来事・事実・訂正・記録を1トランザクションで保存(longterm.save_extraction)
+```
+
+ファイル:`core/sentinel_core/memory/scheduler.py`(いつ)、`extractor.py`(LLM に何を頼み、どう読むか)、`longterm.py`(保存と検索)。表は `store.py` の版5。
+
+### 「どこまで記憶にしたか」の目印
+
+**一言で:** `memory_jobs` に、処理した発言の rowid の範囲を残す。`done` と `skipped` の最大の `to_rowid` が目印(watermark)。
+
+- 失敗(`failed`)は目印にしない。次の機会にやり直す
+- 同じ範囲で3回失敗したら `skipped` を書いて先へ進む。壊れた出力が続くと、毎回 GPU を使い続けるため
+- 挨拶だけ(マスターの発言が無い)のまとまりは、LLM を呼ばずに `skipped`
+
+### 止めても半端な記憶が残らない理由
+
+記憶係の返事を待っている間にマスターが話しかけると、`asyncio` のタスクごと取り消す(`Task.cancel()`)。
+保存は LLM の返事が全部そろってから1回のトランザクションで行うので、取り消された回は何も書かれない。目印も進まないので、次の区切りでやり直される。
+
+**学び:** 「途中で止められる処理」は、副作用(DB への書き込み)を最後の1か所に集めておくと安全になる。
+
+### LLM の出力を寛容に読む
+
+小さなモデルの JSON は崩れることがある。`extractor.parse` は次のように受け止める。
+
+| 崩れ方 | 扱い |
+|---|---|
+| 前置きや ``` の囲み | 最初の `{` から最後の `}` までを読む |
+| 0〜1 の外の数、文字の数 | 0〜1 に丸める。読めなければ既定値 |
+| 知らない分類 | `other` |
+| 日付でない期限(「来週」) | 捨てる |
+| 範囲外の発言番号 | 捨てる。出典が空ならマスターの発言を出典にする |
+| 知らない事実の番号への訂正 | 捨てる |
+| JSON がまったく無い | 失敗として記録し、やり直す |
+
+事実の ID(32桁)は LLM に見せず、`F1` `F2` の短い番号に置き換えて渡す。書き写し間違いを防ぐため。
+
+OpenAI 互換の `response_format: {"type": "json_object"}` で「JSON だけ返す」ように頼む(`OpenAICompatClient.complete_json`)。受け付けないサーバーなら外してやり直す。
+
+### キーワード検索(FTS5 の trigram)
+
+**一言で:** 3文字ずつずらした窓を OR で探し、一致が多いものほど上に来る(bm25)。
+
+- `query_terms("仕事の話。コーヒーは?")` → 3文字の窓「仕事の」「事の話」「コーヒ」「ーヒー」…と、2文字の語「仕事」
+- trigram は3文字未満を探せないので、2文字の漢字語・カタカナ語は `LIKE '%仕事%'` で別に探す
+- 長音「ー」は語の中に出る(コーヒー)ので、区切り文字にしない
+- 見つかったもののうち、事実は全キャラ分、出来事は今のキャラの分だけを返す(論点5)。忘れたもの・置き換え済みのものは返さない
+
+**ハマりどころ:** FTS5 の検索式で `"` を含む語は `""` と2つ重ねて囲む。そのまま入れると構文エラーになる。
+
+### 起動時と終了時
+
+- 起動して30秒後に、前回の積み残しを処理する。ただし起動時にエヴァが挨拶すると、そこで一度止まり、挨拶のあとの15分の区切りで処理される(会話を優先するため)
+- 開発中に窓1で Ctrl+C したときは、最大20秒だけ残りの記憶づくりを待つ。配布版はアプリがコアを止める(kill)ので待たない。間に合わなかった分は次の起動で作る
+- 初めて PR2 の版で起動すると、これまでの会話すべてが「まだ記憶にしていない」扱いになる。何回かに分けて記憶づくりが走る
+
+### やってみる
+
+開発起動(dev-token)のまま、PowerShell で1行ずつ:
+
+```powershell
+$h = @{ "X-Sentinel-Token" = "dev-token" }
+```
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/v1/memory/extract -Headers $h
+```
+```powershell
+(Invoke-RestMethod -Uri http://127.0.0.1:8765/v1/memory/facts -Headers $h).facts | Format-Table content, category, kind, confidence
+```
+```powershell
+(Invoke-RestMethod -Uri http://127.0.0.1:8765/v1/memory/episodes -Headers $h).episodes | Format-Table ended_at, summary
+```
+```powershell
+(Invoke-RestMethod -Uri "http://127.0.0.1:8765/v1/memory/search?q=コーヒー" -Headers $h).hits
+```
+```powershell
+(Invoke-RestMethod -Uri http://127.0.0.1:8765/v1/memory/jobs -Headers $h).jobs | Format-Table started_at, status, n_facts, duration_ms, error
+```
